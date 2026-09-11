@@ -6,7 +6,7 @@
 
 **Architecture:** One root Swift package with ArgusCore, ArgusStore, ArgusPlatform, and ArgusApp targets. No cloud backend or third-party dependency. The core is platform-independent Foundation code; SQLite, UserNotifications and SwiftUI live in separate targets.
 
-**Tech Stack:** Installed Swift 6.1 toolchain, macOS 14+, system SQLite, SwiftUI, UserNotifications.
+**Tech Stack:** Swift 6.1.2, bundled Swift Testing, macOS 14+, system SQLite, SwiftUI, UserNotifications. The installed Command Line Tools SwiftPM has a verified llbuild ABI mismatch and its compiler sees duplicate SwiftBridging module maps. A verified Apple-notarized official Swift 6.1.2 package was downloaded and extracted only into agent scratch, without installation or global toolchain changes, to run real builds/tests. This is development tooling, not an ARGUS runtime dependency.
 
 **Spec:** ../specs/2026-09-17-argus-native-macos-design.md
 
@@ -46,19 +46,19 @@ Files: Package.swift, .gitignore, Sources/ArgusCore/{Reminder,ReminderCommand,Co
 - [ ] Write failing command tests before parser implementation. Representative executable test:
 
 ```swift
-func testRelativeReminderUsesInjectedClock() throws {
+@Test func relativeReminderUsesInjectedClock() throws {
     let now = Date(timeIntervalSince1970: 1_800_000_000)
     let command = try CommandParser.parse("Remind me to leave in 20 minutes", now: now, timeZone: TimeZone(identifier: "America/Los_Angeles")!)
-    guard case let .create(title, dueAt, zone, recurrence) = command else { return XCTFail("Expected create") }
-    XCTAssertEqual(title, "leave")
-    XCTAssertEqual(dueAt.timeIntervalSince(now), 1200)
-    XCTAssertEqual(zone, "America/Los_Angeles")
-    XCTAssertNil(recurrence)
+    guard case let .create(title, dueAt, zone, recurrence) = command else { Issue.record("Expected create"); return }
+    #expect(title == "leave")
+    #expect(dueAt.timeIntervalSince(now) == 1200)
+    #expect(zone == "America/Los_Angeles")
+    #expect(recurrence == nil)
 }
 ```
 
 - [ ] Cover singular/plural minute/hour/day relative durations, zero/negative/overflow durations, unknown prose, empty text, strict UUID selection, ISO8601 edits, `alerts <uuid> 1d,1h`, `snooze <uuid> for 10 minutes`, `Every weekday at 8:30, show my morning briefing`, and unsupported grammar. The briefing wording creates a reminder only, not a future worker before that slice exists.
-- [ ] Observe red with `swift test --filter ArgusCoreTests`; record failure evidence.
+- [ ] Observe red with the selected toolchain's `swift test --disable-xctest --enable-swift-testing --filter ArgusCoreTests`; record failure evidence. Use `import Testing` and `import Foundation`. An environment/compiler crash is not behavioral red. No XCTest framework is available without full Xcode.
 - [ ] Implement validating models and finite parser without eval, shell, or network.
 - [ ] Write/fail/run scheduling tests: one-time offsets 86400/3600, duplicate normalization, stable IDs, past alert omission, snooze retaining dueAt, completion, weekday weekend skipping, DST gap/fold, horizon bound and no duplicate occurrence.
 - [ ] Implement scheduling and quiet hours, then run `swift test` and `swift build`.
