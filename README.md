@@ -2,12 +2,13 @@
 
 A proposed native macOS, local-first assistant for reminders, reusable prompts, and bounded parallel work. Calm interface, explicit permissions, verified results.
 
-**Status: design and release planning, not a working application.** The native Swift/SwiftUI/SQLite direction and three deterministic workflows are agreed. The written design and phased plan await review before implementation. No runtime language model, cloud backend, shell agent, or hidden development-tool dependency is proposed.
+**Status: first-slice implementation in progress, not a verified working application.** The native Swift/SwiftUI/SQLite direction and three deterministic workflows are agreed. Following the user's instruction to continue without waiting, reversible reminder implementation is proceeding on `feat/reminders-slice`. A separate line-by-line review of the written spec has not occurred. No runtime language model, cloud backend, shell agent, or hidden development-tool dependency is proposed.
 
 ## Review documents
 
 - [Consolidated design](docs/superpowers/specs/2026-09-17-argus-native-macos-design.md)
 - [Phased delivery and verification roadmap](docs/superpowers/plans/2026-09-17-argus-delivery-roadmap.md)
+- [Executable reminders-slice plan and continuation ruling](docs/superpowers/plans/2026-09-17-reminders-slice.md)
 - [Native experience research](docs/research/native-experience.md)
 - [macOS release and isolation research](docs/research/macos-release.md)
 - [Security and recovery research](docs/research/security-recovery.md)
