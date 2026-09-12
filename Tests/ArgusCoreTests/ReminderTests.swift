@@ -93,3 +93,35 @@ extension ReminderTests {
     }
   }
 }
+
+extension ReminderTests {
+  @Test func testCurrentOccurrenceSelectionIsExplicitAndIndependentOfUpdatedAt() throws {
+    let formatter = ISO8601DateFormatter()
+    func d(_ value: String) -> Date { formatter.date(from: value)! }
+    var item = try Reminder(
+      title: "Daily", dueAt: d("2026-09-18T08:30:00Z"), timeZoneID: "UTC",
+      createdAt: d("2026-09-01T00:00:00Z"), updatedAt: d("2026-09-01T00:00:00Z"),
+      recurrence: .weekdays(hour: 8, minute: 30))
+    #expect(try item.occurrenceToSnooze(at: d("2026-09-21T08:00:00Z")) == d("2026-09-21T08:30:00Z"))
+    #expect(try item.occurrenceToSnooze(at: d("2026-09-21T09:00:00Z")) == d("2026-09-21T08:30:00Z"))
+    #expect(try item.occurrenceToSnooze(at: d("2026-09-20T09:00:00Z")) == d("2026-09-21T08:30:00Z"))
+    item.snoozedOccurrenceAt = d("2026-09-21T08:30:00Z")
+    item.snoozedUntil = d("2026-09-23T10:00:00Z")
+    item.updatedAt = d("2026-09-22T08:00:00Z")
+    #expect(try item.occurrenceToSnooze(at: d("2026-09-22T09:00:00Z")) == d("2026-09-21T08:30:00Z"))
+    #expect(try item.occurrenceToSnooze(at: d("2026-09-24T09:00:00Z")) == d("2026-09-24T08:30:00Z"))
+  }
+  @Test func testSnoozeTargetValidationAndLegacyDecode() throws {
+    var item = try make()
+    let legacy = try JSONEncoder().encode(item)
+    #expect(try JSONDecoder().decode(Reminder.self, from: legacy).snoozedOccurrenceAt == nil)
+    item.snoozedOccurrenceAt = item.dueAt
+    #expect(throws: CoreError.invalidSnooze) { try item.validate() }
+    item.snoozedUntil = item.dueAt.addingTimeInterval(600)
+    #expect(throws: Never.self) { try item.validate() }
+    item.snoozedOccurrenceAt = item.dueAt.addingTimeInterval(1)
+    #expect(throws: CoreError.invalidSnooze) { try item.validate() }
+    item.snoozedOccurrenceAt = Date(timeIntervalSince1970: .nan)
+    #expect(throws: CoreError.invalidDate) { try item.validate() }
+  }
+}

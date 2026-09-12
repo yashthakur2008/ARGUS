@@ -35,7 +35,7 @@ struct CommandParserTests {
       "remind me to work in -1 hour", "remind me to work in 999999999999999999999999 days",
       "remind me to work in 1.5 hours", "remind me to  in 2 minutes", "Every month at 8:30, pay",
       "Every weekday at 24:00, work", "Every weekday at 8:60, work", "delete 123", "list now",
-      "help me", "alerts \(id) -1h", "alerts \(id) 0h", "snooze \(id) for 0 minutes",
+      "help me", "alerts \(id) -1h", "snooze \(id) for 0 minutes",
       "edit \(id) due tomorrow",
     ] { #expect(throws: (any Error).self) { try parse(text) } }
   }
@@ -101,5 +101,14 @@ extension CommandParserTests {
     for text in ["2026-01-01T24:00:00Z", "2026-01-01T08:00:00+25:00", "2026-01-01T08:00:00+05:99"] {
       #expect(throws: (any Error).self) { try parse("edit \(id) due \(text)") }
     }
+  }
+}
+
+extension CommandParserTests {
+  @Test func testZeroAlertOffsetsDoNotPermitZeroDurations() throws {
+    #expect(try parse("alerts \(id) 0m,10m") == .setAlerts(id: id, offsets: [0, 600]))
+    #expect(try parse("alerts \(id) 0h") == .setAlerts(id: id, offsets: [0]))
+    #expect(throws: CoreError.invalidDuration) { try parse("snooze \(id) for 0 minutes") }
+    #expect(throws: CoreError.invalidDuration) { try parse("remind me to work in 0 minutes") }
   }
 }
