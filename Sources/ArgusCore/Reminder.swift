@@ -159,9 +159,13 @@ func validatedTitle(_ title: String) throws -> String {
 }
 
 func validatedZone(_ identifier: String) throws -> TimeZone {
-  guard
-    TimeZone.knownTimeZoneIdentifiers.contains(identifier) || identifier == "UTC"
-      || identifier == "GMT",
+  // Foundation supports canonical names and links omitted from its enumerated list
+  // (for example Asia/Kolkata and US/Pacific). Require a structured zone name so
+  // its permissive abbreviation/fixed-offset parsing cannot accept ambiguous input.
+  let isStructuredName =
+    identifier.range(
+      of: #"\A[A-Za-z0-9_+-]+(?:/[A-Za-z0-9_+-]+)+\z"#, options: .regularExpression) != nil
+  guard isStructuredName || identifier == "UTC" || identifier == "GMT",
     let zone = TimeZone(identifier: identifier)
   else { throw CoreError.invalidTimeZone(identifier) }
   return zone

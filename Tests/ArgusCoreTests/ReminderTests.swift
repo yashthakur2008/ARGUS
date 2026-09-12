@@ -125,3 +125,30 @@ extension ReminderTests {
     #expect(throws: CoreError.invalidDate) { try item.validate() }
   }
 }
+
+extension ReminderTests {
+  @Test func testSupportedIANAIdentifiersAndAliasesDoNotRequireEnumeration() throws {
+    for zone in ["Asia/Kolkata", "Asia/Calcutta", "US/Pacific", "Etc/GMT+5", "UTC", "GMT"] {
+      let item = try make(zone: zone)
+      #expect(item.timeZoneID == zone)
+      #expect(try JSONDecoder().decode(Reminder.self, from: JSONEncoder().encode(item)) == item)
+      #expect(throws: Never.self) {
+        try QuietHours(startHour: 22, startMinute: 0, endHour: 8, endMinute: 0, timeZoneID: zone)
+      }
+    }
+    let kolkata = try #require(TimeZone(identifier: "Asia/Kolkata"))
+    #expect(
+      try CommandParser.parse("remind me to work in 1 hour", now: now, timeZone: kolkata)
+        == .create(
+          title: "work", dueAt: now.addingTimeInterval(3600), timeZoneID: "Asia/Kolkata",
+          recurrence: nil))
+  }
+  @Test func testAbbreviationsUnsupportedAndMalformedZonesRemainRejected() {
+    for zone in [
+      "EST", "PST", "CST", "GMT+0530", "Mars/Olympus", "Asia//Kolkata", "/Asia/Kolkata",
+      "Asia/Kolkata/", "Asia/../Kolkata", " Asia/Kolkata", "Asia/Kolkata\n",
+    ] {
+      #expect(throws: CoreError.invalidTimeZone(zone)) { try make(zone: zone) }
+    }
+  }
+}
