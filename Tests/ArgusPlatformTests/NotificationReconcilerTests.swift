@@ -257,3 +257,30 @@ func authorizationStatesAreReportedHonestly(status: NotificationAuthorization) a
   #expect(pending.first?.title == "After")
   #expect(pending.first?.sourceRevision == 2)
 }
+
+@Test(arguments: [false, true])
+func knownStaleAddIsRemovedEvenWhenNextPendingFails(revoke: Bool) async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let store = try ReminderStore(databaseURL: directory.appendingPathComponent("state.sqlite"))
+  let now = Date(timeIntervalSince1970: 1_800_000_000)
+  let reminder = try Reminder(title: "Stale", dueAt: now.addingTimeInterval(60), timeZoneID: "UTC", createdAt: now, updatedAt: now)
+  try store.save(reminder, expectedRevision: nil)
+  let client = FakeNotifications()
+  let other = NotificationIntent(id: "another.app", reminderID: UUID(), title: "Untouched", fireAt: now, sourceRevision: 1)
+  try await client.add(other)
+  await client.pauseAdd()
+  let reconciler = NotificationReconciler(store: store, client: client)
+  let task = Task { await reconciler.reconcile(now: now, horizon: now.addingTimeInterval(3600)) }
+  await client.waitForPausedAdd()
+  if revoke { await client.setStatus(.denied) }
+  else { try store.delete(id: reminder.id, expectedRevision: 1) }
+  await client.setPendingFailure(true)
+  await client.releaseAdd()
+  let result = await task.value
+  #expect(result.isPending)
+  #expect(result.error != nil)
+  #expect(await client.values.count == 1)
+  #expect(await client.values[other.id] == other)
+}

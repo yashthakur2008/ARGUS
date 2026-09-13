@@ -48,13 +48,52 @@ final class SQLiteDatabase {
   private func checkedSchemaVersion() throws -> Int64 {
     let version = try scalar("PRAGMA user_version")
     if version == 0 {
-      guard try scalar("SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'") == 0 else {
+      guard try scalar("SELECT count(*) FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'") == 0 else {
         throw StoreError.corruption("Unversioned database is not empty")
       }
     } else if version != 1 {
       throw StoreError.unsupportedSchema(version)
+    } else {
+      try validateSchema()
     }
     return version
+  }
+
+  private func validateSchema() throws {
+    try validateColumns("PRAGMA table_info(reminders)", expected: [
+      ("id", "TEXT", 1, 1), ("revision", "INTEGER", 1, 0), ("payload", "BLOB", 1, 0)
+    ])
+    try validateColumns("PRAGMA table_info(store_metadata)", expected: [
+      ("id", "INTEGER", 0, 1), ("generation", "INTEGER", 1, 0)
+    ])
+  }
+
+  private func validateColumns(_ pragma: String, expected: [(String, String, Int32, Int32)]) throws {
+    try statement(pragma) { statement in
+      var index = 0
+      while try step(statement) == SQLITE_ROW {
+        guard index < expected.count,
+          let name = sqlite3_column_text(statement, 1),
+          let type = sqlite3_column_text(statement, 2) else {
+          throw StoreError.corruption("Incompatible version-1 schema")
+        }
+        let column = expected[index]
+        guard String(cString: name) == column.0,
+          String(cString: type).uppercased() == column.1,
+          sqlite3_column_int(statement, 3) == column.2,
+          sqlite3_column_int(statement, 5) == column.3 else {
+          throw StoreError.corruption("Incompatible version-1 identity or column schema")
+        }
+        index += 1
+      }
+      guard index == expected.count else { throw StoreError.corruption("Missing version-1 columns") }
+    }
+  }
+
+  func requireSingleChangedRow() throws {
+    guard sqlite3_changes(handle) == 1 else {
+      throw StoreError.corruption("Mutation did not affect exactly one row")
+    }
   }
 
   func failure(_ code: Int32) -> StoreError {

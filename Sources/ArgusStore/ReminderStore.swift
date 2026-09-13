@@ -45,6 +45,7 @@ public final class ReminderStore: @unchecked Sendable {
           try database.bind(saved.revision, to: statement, at: 2)
           try database.bind(payload, to: statement, at: 3)
           _ = try database.step(statement)
+          try database.requireSingleChangedRow()
         }
         try database.incrementGeneration()
       }
@@ -59,6 +60,7 @@ public final class ReminderStore: @unchecked Sendable {
         try database.statement("DELETE FROM reminders WHERE id = ?") { statement in
           try database.bind(id.uuidString, to: statement, at: 1)
           _ = try database.step(statement)
+          try database.requireSingleChangedRow()
         }
         try database.incrementGeneration()
       }
@@ -82,6 +84,7 @@ public final class ReminderStore: @unchecked Sendable {
     return try database.statement(sql) { statement in
       if let id { try database.bind(id.uuidString, to: statement, at: 1) }
       var reminders: [Reminder] = []
+      var identities = Set<UUID>()
       while try database.step(statement) == SQLITE_ROW {
         guard sqlite3_column_type(statement, 0) == SQLITE_TEXT,
           sqlite3_column_type(statement, 1) == SQLITE_INTEGER,
@@ -99,6 +102,9 @@ public final class ReminderStore: @unchecked Sendable {
         catch { throw StoreError.corruption("Invalid reminder payload: \(error)") }
         guard reminder.id.uuidString == metadataID, reminder.revision == metadataRevision else {
           throw StoreError.corruption("Reminder metadata does not match payload")
+        }
+        guard identities.insert(reminder.id).inserted else {
+          throw StoreError.corruption("Duplicate reminder identity")
         }
         reminders.append(reminder)
       }

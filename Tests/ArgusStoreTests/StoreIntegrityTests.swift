@@ -122,3 +122,59 @@ func rejectedSchemaDoesNotChangeDatabaseBytes(version: Int64) throws {
   #expect(throws: (any Error).self) { _ = try ReminderStore(databaseURL: url) }
   #expect(try Data(contentsOf: url) == before)
 }
+
+@Test func foreignSQLiteLikePrefixIsRejectedWithoutModification() throws {
+  let (url, _) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  let database = try SQLiteDatabase(url: url)
+  try database.execute("DROP TABLE reminders")
+  try database.execute("DROP TABLE store_metadata")
+  try database.execute("CREATE TABLE sqlitex_notes (content TEXT)")
+  try database.execute("INSERT INTO sqlitex_notes VALUES ('keep')")
+  try database.execute("PRAGMA user_version = 0")
+  try database.execute("PRAGMA journal_mode = DELETE")
+  let before = try Data(contentsOf: url)
+  #expect(throws: (any Error).self) { _ = try ReminderStore(databaseURL: url) }
+  #expect(try Data(contentsOf: url) == before)
+  #expect(try database.scalar("SELECT count(*) FROM sqlite_master WHERE name = 'reminders'") == 0)
+}
+
+@Test(arguments: [1, 2])
+func malformedIdentitySchemaIsRejectedWithoutModification(copies: Int) throws {
+  let (url, reminder) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  func seedAndClose() throws { try ReminderStore(databaseURL: url).save(reminder, expectedRevision: nil) }
+  try seedAndClose()
+  let database = try SQLiteDatabase(url: url)
+  try database.transaction {
+    try database.execute("ALTER TABLE reminders RENAME TO old_reminders")
+    try database.execute("CREATE TABLE reminders (id TEXT, revision INTEGER, payload BLOB)")
+    for _ in 0..<copies { try database.execute("INSERT INTO reminders SELECT * FROM old_reminders") }
+    try database.execute("DROP TABLE old_reminders")
+  }
+  try database.execute("PRAGMA journal_mode = DELETE")
+  let before = try Data(contentsOf: url)
+  #expect(throws: (any Error).self) { _ = try ReminderStore(databaseURL: url) }
+  #expect(try Data(contentsOf: url) == before)
+  #expect(try database.scalar("SELECT count(*) FROM reminders") == Int64(copies))
+}
+
+@Test func duplicateIdentitiesIntroducedAfterOpenCannotBeReadOrMutated() throws {
+  let (url, reminder) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  let store = try ReminderStore(databaseURL: url)
+  try store.save(reminder, expectedRevision: nil)
+  let database = try SQLiteDatabase(url: url)
+  try database.transaction {
+    try database.execute("ALTER TABLE reminders RENAME TO old_reminders")
+    try database.execute("CREATE TABLE reminders (id TEXT, revision INTEGER, payload BLOB)")
+    try database.execute("INSERT INTO reminders SELECT * FROM old_reminders")
+    try database.execute("INSERT INTO reminders SELECT * FROM old_reminders")
+    try database.execute("DROP TABLE old_reminders")
+  }
+  #expect(throws: (any Error).self) { _ = try store.list() }
+  #expect(throws: (any Error).self) { try store.save(reminder, expectedRevision: 1) }
+  #expect(throws: (any Error).self) { try store.delete(id: reminder.id, expectedRevision: 1) }
+  #expect(try database.scalar("SELECT count(*) FROM reminders") == 2)
+  #expect(try database.generation() == 1)
+}
