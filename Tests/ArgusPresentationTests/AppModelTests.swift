@@ -186,7 +186,7 @@ extension AppModelTests {
   @Test func editorSaveAndStaleEditUseRealStore() async throws {
     let (model, dir) = try fixture(); defer { try? FileManager.default.removeItem(at: dir) }
     var draft = ReminderDraft(now: now, timeZone: TimeZone(identifier: "UTC")!)
-    draft.title = "Editor fixture"; draft.timeZoneID = "Asia/Tokyo"
+    draft.title = "Editor fixture"; draft.timeZoneID = "Asia/Kolkata"
     draft.weekdays = true; draft.alertMinutes = "0, 15"
     #expect(await model.save(draft))
     let original = try #require(model.reminders.first)
@@ -195,7 +195,7 @@ extension AppModelTests {
     #expect(await model.save(edited))
     #expect(!(await model.save(edited)))
     #expect(try model.store.list().first?.revision == 2)
-    #expect(try model.store.list().first?.timeZoneID == "Asia/Tokyo")
+    #expect(try model.store.list().first?.timeZoneID == "Asia/Kolkata")
     #expect(model.message?.contains("review") == true)
   }
   @Test func uiSnoozePersistsTargetAndApprovalIsOneUse() async throws {
