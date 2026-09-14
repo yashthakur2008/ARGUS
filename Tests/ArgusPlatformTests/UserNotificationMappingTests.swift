@@ -53,3 +53,13 @@ extension UserNotificationMappingTests {
     }
   }
 }
+extension UserNotificationMappingTests {
+  @Test func foregroundPolicyPresentsOwnedValidRequestsWithoutFocusBypass() throws {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let intent = NotificationIntent(id: "argus.reminder.foreground", reminderID: UUID(), title: "Fixture", fireAt: now.addingTimeInterval(60), sourceRevision: 1)
+    let request = try UserNotificationMapping.request(for: intent, now: now)
+    #expect(UserNotificationMapping.foregroundOptions(for: request) == [.banner, .sound])
+    let foreign = UNNotificationRequest(identifier: "other.app", content: request.content, trigger: request.trigger)
+    #expect(UserNotificationMapping.foregroundOptions(for: foreign).isEmpty)
+  }
+}

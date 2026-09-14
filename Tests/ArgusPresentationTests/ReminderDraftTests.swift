@@ -46,3 +46,14 @@ struct ReminderDraftTests {
     #expect(throws: (any Error).self) { try draft.reminder(now: now) }
   }
 }
+extension ReminderDraftTests {
+  @Test func titleOnlyEditPreservesDSTGapRecurrence() throws {
+    let before = ISO8601DateFormatter().date(from: "2026-04-23T20:00:00Z")!
+    let zone = TimeZone(identifier: "Africa/Cairo")!
+    guard case let .create(title, due, zoneID, recurrence) = try CommandParser.parse("every weekday at 00:30, Original", now: before, timeZone: zone) else { Issue.record("Expected create"); return }
+    let original = try Reminder(title: title, dueAt: due, timeZoneID: zoneID, createdAt: before, updatedAt: before, recurrence: recurrence)
+    var draft = ReminderDraft(original: original, now: before, timeZone: zone)
+    draft.title = "Renamed"
+    #expect(try draft.reminder(now: before).recurrence == .weekdays(hour: 0, minute: 30))
+  }
+}

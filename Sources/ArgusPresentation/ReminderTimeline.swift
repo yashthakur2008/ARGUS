@@ -3,13 +3,18 @@ import ArgusCore
 
 public enum ReminderTimeline {
   public static func displayDate(for reminder: Reminder, now: Date) throws -> Date {
-    let occurrence = try reminder.occurrenceToSnooze(at: now)
-    if let snoozed = reminder.snoozedUntil {
-      if snoozed > now || reminder.recurrence == nil || reminder.snoozedOccurrenceAt == occurrence {
-        return snoozed
-      }
+    guard let recurrence = reminder.recurrence else { return reminder.snoozedUntil ?? reminder.dueAt }
+    var unsnoozed = reminder
+    unsnoozed.snoozedUntil = nil
+    unsnoozed.snoozedOccurrenceAt = nil
+    let occurrence = try unsnoozed.occurrenceToSnooze(at: now)
+    guard let snoozed = reminder.snoozedUntil else { return occurrence }
+    let target = reminder.snoozedOccurrenceAt ?? reminder.dueAt
+    if occurrence == target {
+      guard let zone = TimeZone(identifier: reminder.timeZoneID) else { throw CoreError.invalidTimeZone(reminder.timeZoneID) }
+      return min(snoozed, try recurrence.nextOccurrence(after: occurrence, timeZone: zone))
     }
-    return occurrence
+    return snoozed > now ? min(occurrence, snoozed) : occurrence
   }
 
   public static func nowItems(_ reminders: [Reminder], now: Date) throws -> [Reminder] {

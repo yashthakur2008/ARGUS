@@ -4,12 +4,14 @@ import ArgusCore
 
 /// Construct only at the native app composition root, never in CLI tests.
 public actor UserNotificationClient: NotificationClient {
+  private let presentationDelegate = UserNotificationPresentationDelegate()
   private let center: UNUserNotificationCenter
   private let clock: @Sendable () -> Date
 
   public init(center: UNUserNotificationCenter, clock: @escaping @Sendable () -> Date) {
     self.center = center
     self.clock = clock
+    center.delegate = presentationDelegate
   }
 
   public func authorizationStatus() async -> NotificationAuthorization {
@@ -63,5 +65,15 @@ public actor UserNotificationClient: NotificationClient {
 
   public func remove(ids: [String]) async {
     center.removePendingNotificationRequests(withIdentifiers: ids.filter { $0.hasPrefix(NotificationIntent.identifierPrefix) })
+  }
+}
+
+/// Foreground presentation asks for ordinary banners/sound only. macOS permission,
+/// Focus and notification settings remain authoritative. No critical alert bypass.
+private final class UserNotificationPresentationDelegate: NSObject, UNUserNotificationCenterDelegate {
+  func userNotificationCenter(_ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+    completionHandler(UserNotificationMapping.foregroundOptions(for: notification.request))
   }
 }

@@ -36,8 +36,14 @@ public struct ReminderDraft {
     }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone
-    let recurrence: RecurrenceRule? = weekdays
-      ? .weekdays(hour: calendar.component(.hour, from: dueAt), minute: calendar.component(.minute, from: dueAt)) : nil
+    let recurrence: RecurrenceRule?
+    if weekdays, let original, original.recurrence != nil,
+      original.dueAt == dueAt, original.timeZoneID == timeZoneID {
+      recurrence = original.recurrence
+    } else {
+      recurrence = weekdays
+        ? .weekdays(hour: calendar.component(.hour, from: dueAt), minute: calendar.component(.minute, from: dueAt)) : nil
+    }
     return try Reminder(id: original?.id ?? UUID(), title: title, dueAt: dueAt,
       timeZoneID: timeZoneID, createdAt: original?.createdAt ?? now, updatedAt: now,
       revision: original?.revision ?? 1, alertOffsets: offsets, recurrence: recurrence,
