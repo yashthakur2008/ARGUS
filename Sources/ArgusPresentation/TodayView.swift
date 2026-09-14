@@ -141,8 +141,8 @@ public struct TodayView: View {
       Spacer(minLength: 12)
       Menu {
         Button("Edit…") { openEditor(item) }
-        Button("Snooze 10 minutes") { Task { await model.snooze(item, until: model.referenceDate.addingTimeInterval(600)) } }
-        Button("Snooze 1 hour") { Task { await model.snooze(item, until: model.referenceDate.addingTimeInterval(3600)) } }
+        Button("Snooze 10 minutes") { Task { await model.snooze(item, for: 600) } }
+        Button("Snooze 1 hour") { Task { await model.snooze(item, for: 3600) } }
         Button("Snooze until…") { snooze = SnoozeSession(reminder: item, until: model.referenceDate.addingTimeInterval(600)) }
         Divider()
         Button("Delete…", role: .destructive) { model.requestDeletion(item) }

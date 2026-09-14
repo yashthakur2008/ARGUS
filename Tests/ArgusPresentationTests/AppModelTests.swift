@@ -227,3 +227,29 @@ extension AppModelTests {
     #expect(model.message?.contains("review") == true)
   }
 }
+extension AppModelTests {
+  @Test func relativeSnoozeUsesFreshClockAfterRefresh() async throws {
+    let (fixture, dir) = try fixture(); defer { try? FileManager.default.removeItem(at: dir) }
+    let clock = FixtureClock(now)
+    let model = AppModel(store: fixture.store, client: FakeNotifications(), clock: { clock.read() })
+    let item = try Reminder(title: "Relative fixture", dueAt: now, timeZoneID: "UTC", createdAt: now, updatedAt: now)
+    try model.store.save(item, expectedRevision: nil)
+    await model.refresh()
+    clock.advance(23)
+    await model.snooze(item, for: 600)
+    let saved = try #require(model.store.list().first)
+    #expect(saved.snoozedUntil?.timeIntervalSince(saved.updatedAt) == 600)
+    #expect(saved.updatedAt == now.addingTimeInterval(23))
+    #expect(saved.dueAt == item.dueAt)
+  }
+  @Test func authorizationNoticeDoesNotDuplicateStatus() async throws {
+    let (fixture, dir) = try fixture(); defer { try? FileManager.default.removeItem(at: dir) }
+    let now = self.now
+    for authorization in [NotificationAuthorization.notDetermined, .denied] {
+      let model = AppModel(store: fixture.store, client: SchedulingNotifications(authorization), clock: { now })
+      await model.refresh()
+      #expect(model.schedulingNotice == nil)
+      #expect(model.result?.error != nil)
+    }
+  }
+}

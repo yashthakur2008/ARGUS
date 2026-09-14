@@ -136,17 +136,33 @@ public final class AppModel {
     }
   }
 
+  public var schedulingNotice: String? {
+    guard let result else { return nil }
+    if (result.authorization == .notDetermined || result.authorization == .denied),
+      result.error == "Notification authorization is \(result.authorization.rawValue)" { return nil }
+    return result.error
+  }
+
+  public func snooze(_ reminder: Reminder, for duration: TimeInterval) async {
+    let now = clock()
+    await snooze(reminder, until: now.addingTimeInterval(duration), now: now)
+  }
+
   public func snooze(_ reminder: Reminder, until: Date) async {
+    await snooze(reminder, until: until, now: clock())
+  }
+
+  private func snooze(_ reminder: Reminder, until: Date, now: Date) async {
     guard !isWorking else { return }
     isWorking = true
     defer { isWorking = false }
     do {
-      guard until > clock() else { throw CoreError.invalidDate }
+      guard until > now else { throw CoreError.invalidDate }
       var updated = reminder
-      let occurrence = try reminder.occurrenceToSnooze(at: clock())
+      let occurrence = try reminder.occurrenceToSnooze(at: now)
       updated.snoozedUntil = until
       updated.snoozedOccurrenceAt = occurrence
-      updated.updatedAt = clock()
+      updated.updatedAt = now
       try store.save(updated, expectedRevision: reminder.revision)
       message = nil
     } catch { message = "Could not snooze. Please review the reminder. \(error)" }

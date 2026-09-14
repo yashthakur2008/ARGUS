@@ -6,7 +6,7 @@ struct NoticeView: View {
     VStack(alignment: .leading, spacing: 6) {
       Label(model.status, systemImage: model.isReconciling ? "arrow.triangle.2.circlepath" : "internaldrive")
         .font(.caption).foregroundStyle(.secondary)
-      if let error = model.result?.error {
+      if let error = model.schedulingNotice {
         Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange)
       }
       if let message = model.message {
