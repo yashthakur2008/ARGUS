@@ -3,5 +3,9 @@ public enum StoreError: Error, Equatable, Sendable {
   case conflict
   case corruption(String)
   case unsupportedSchema(Int64)
+  case noticeNotFound(String)
+  case noticeDismissed(String)
+  case noticeNoLongerApplicable(String)
+  case invalidSnooze
   case revisionOverflow
 }

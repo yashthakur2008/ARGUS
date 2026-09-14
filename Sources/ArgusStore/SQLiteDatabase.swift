@@ -16,26 +16,7 @@ final class SQLiteDatabase {
     }
     do {
       try check(sqlite3_busy_timeout(handle, 2_000))
-      // Reject unknown/nonempty unversioned databases before changing their file headers.
-      _ = try checkedSchemaVersion()
-      try execute("PRAGMA foreign_keys = ON")
-      try execute("PRAGMA journal_mode = WAL")
-      try execute("PRAGMA synchronous = FULL")
-      try transaction {
-        let version = try checkedSchemaVersion()
-        if version == 0 {
-          try execute("CREATE TABLE reminders (id TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL CHECK(revision > 0), payload BLOB NOT NULL)")
-          try execute("CREATE TABLE store_metadata (id INTEGER PRIMARY KEY CHECK(id = 1), generation INTEGER NOT NULL CHECK(generation >= 0))")
-          try execute("INSERT INTO store_metadata (id, generation) VALUES (1, 0)")
-          try execute("PRAGMA user_version = 1")
-        }
-        guard try scalar("SELECT count(*) FROM store_metadata") == 1 else {
-          throw StoreError.corruption("Invalid generation metadata")
-        }
-        _ = try generation()
-        // Fail on an incompatible table immediately, without rebuilding or discarding it.
-        try statement("SELECT id, revision, payload FROM reminders LIMIT 0") { _ in }
-      }
+      try prepareSchema()
     } catch {
       sqlite3_close(handle)
       handle = nil
@@ -44,51 +25,6 @@ final class SQLiteDatabase {
   }
 
   deinit { sqlite3_close(handle) }
-
-  private func checkedSchemaVersion() throws -> Int64 {
-    let version = try scalar("PRAGMA user_version")
-    if version == 0 {
-      guard try scalar("SELECT count(*) FROM sqlite_master WHERE name NOT GLOB 'sqlite_*'") == 0 else {
-        throw StoreError.corruption("Unversioned database is not empty")
-      }
-    } else if version != 1 {
-      throw StoreError.unsupportedSchema(version)
-    } else {
-      try validateSchema()
-    }
-    return version
-  }
-
-  private func validateSchema() throws {
-    try validateColumns("PRAGMA table_info(reminders)", expected: [
-      ("id", "TEXT", 1, 1), ("revision", "INTEGER", 1, 0), ("payload", "BLOB", 1, 0)
-    ])
-    try validateColumns("PRAGMA table_info(store_metadata)", expected: [
-      ("id", "INTEGER", 0, 1), ("generation", "INTEGER", 1, 0)
-    ])
-  }
-
-  private func validateColumns(_ pragma: String, expected: [(String, String, Int32, Int32)]) throws {
-    try statement(pragma) { statement in
-      var index = 0
-      while try step(statement) == SQLITE_ROW {
-        guard index < expected.count,
-          let name = sqlite3_column_text(statement, 1),
-          let type = sqlite3_column_text(statement, 2) else {
-          throw StoreError.corruption("Incompatible version-1 schema")
-        }
-        let column = expected[index]
-        guard String(cString: name) == column.0,
-          String(cString: type).uppercased() == column.1,
-          sqlite3_column_int(statement, 3) == column.2,
-          sqlite3_column_int(statement, 5) == column.3 else {
-          throw StoreError.corruption("Incompatible version-1 identity or column schema")
-        }
-        index += 1
-      }
-      guard index == expected.count else { throw StoreError.corruption("Missing version-1 columns") }
-    }
-  }
 
   func requireSingleChangedRow() throws {
     guard sqlite3_changes(handle) == 1 else {
@@ -150,7 +86,8 @@ final class SQLiteDatabase {
   }
 
   func bind(_ text: String, to statement: OpaquePointer, at index: Int32) throws {
-    try check(text.withCString { sqlite3_bind_text(statement, index, $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) })
+    guard text.utf8.count <= Int(Int32.max) else { throw StoreError.corruption("Text binding is too large") }
+    try check(text.withCString { sqlite3_bind_text(statement, index, $0, Int32(text.utf8.count), unsafeBitCast(-1, to: sqlite3_destructor_type.self)) })
   }
 
   func bind(_ value: Int64, to statement: OpaquePointer, at index: Int32) throws {

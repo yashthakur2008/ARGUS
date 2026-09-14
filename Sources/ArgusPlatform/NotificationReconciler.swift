@@ -9,7 +9,7 @@ public actor NotificationReconciler {
   private let client: any NotificationClient
   private var running = false
   private var dirty = false
-  private var latestWindow: (now: Date, horizon: Date)?
+  private var latestWindow: (now: Date, horizon: Date?)?
   private var waiters: [CheckedContinuation<ReconciliationResult, Never>] = []
 
   public init(store: ReminderStore, client: any NotificationClient) {
@@ -17,9 +17,17 @@ public actor NotificationReconciler {
     self.client = client
   }
 
+  public func reconcileSystemNotifications(now: Date) async -> ReconciliationResult {
+    await run(now: now, horizon: nil)
+  }
+
   /// Concurrent calls join a single flight and request a rerun using the latest window.
   /// A continuously changing source is bounded to 16 passes and reported as pending.
   public func reconcile(now: Date, horizon: Date) async -> ReconciliationResult {
+    await run(now: now, horizon: horizon)
+  }
+
+  private func run(now: Date, horizon: Date?) async -> ReconciliationResult {
     latestWindow = (now, horizon)
     dirty = true
     if running {
@@ -44,7 +52,7 @@ public actor NotificationReconciler {
     return result
   }
 
-  private func reconcilePass(now: Date, horizon: Date) async -> (result: ReconciliationResult, stale: Bool) {
+  private func reconcilePass(now: Date, horizon: Date?) async -> (result: ReconciliationResult, stale: Bool) {
     var generation: Int64 = -1
     var authorization = NotificationAuthorization.notDetermined
     func outcome(_ error: String?, count: Int = 0, stale: Bool = false) -> (ReconciliationResult, Bool) {
@@ -53,7 +61,9 @@ public actor NotificationReconciler {
     }
     do {
       generation = try store.generation()
-      let desired = try store.desiredNotifications(now: now, horizon: horizon)
+      let desired: [NotificationIntent]
+      if let horizon { desired = try store.desiredNotifications(now: now, horizon: horizon) }
+      else { desired = try store.desiredSystemNotifications(now: now) }
       guard try store.generation() == generation else { return outcome(nil, stale: true) }
       authorization = await client.authorizationStatus()
       guard try store.generation() == generation else { return outcome(nil, stale: true) }
