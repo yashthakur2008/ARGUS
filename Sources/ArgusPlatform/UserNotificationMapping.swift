@@ -20,10 +20,11 @@ public enum UserNotificationMapping {
     content.sound = .default
     content.userInfo = ["reminderID": intent.reminderID.uuidString,
       "sourceRevision": String(intent.sourceRevision), "sourceTitle": intent.title,
-      "fireAt": intent.fireAt.timeIntervalSince1970]
+      "mappingVersion": "2",
+      "fireAtReferenceBits": String(intent.fireAt.timeIntervalSinceReferenceDate.bitPattern)]
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-    var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSince1970: ceil(intent.fireAt.timeIntervalSince1970)))
+    var components = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date(timeIntervalSinceReferenceDate: ceil(intent.fireAt.timeIntervalSinceReferenceDate)))
     components.calendar = calendar
     components.timeZone = calendar.timeZone
     let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
@@ -34,25 +35,36 @@ public enum UserNotificationMapping {
     let info = request.content.userInfo
     guard let rawID = info["reminderID"] as? String, let id = UUID(uuidString: rawID),
       let rawRevision = info["sourceRevision"] as? String, let revision = Int64(rawRevision),
-      let title = info["sourceTitle"] as? String, let timestamp = info["fireAt"] as? Double,
+      let title = info["sourceTitle"] as? String,
       let trigger = request.trigger as? UNCalendarNotificationTrigger, !trigger.repeats,
       trigger.dateComponents.timeZone == TimeZone(secondsFromGMT: 0)
     else { return nil }
+    let fireAt: Date
+    if let version = info["mappingVersion"] as? String {
+      guard version == "2", let raw = info["fireAtReferenceBits"] as? String,
+        let bits = UInt64(raw) else { return nil }
+      fireAt = Date(timeIntervalSinceReferenceDate: Double(bitPattern: bits))
+    } else {
+      // Legacy Unix metadata remains readable. If epoch conversion lost a bit,
+      // exact reconciler equality replaces it with the versioned request.
+      guard info["mappingVersion"] == nil, let timestamp = info["fireAt"] as? Double else { return nil }
+      fireAt = Date(timeIntervalSince1970: timestamp)
+    }
     let result = NotificationIntent(id: request.identifier, reminderID: id, title: title,
-      fireAt: Date(timeIntervalSince1970: timestamp), sourceRevision: revision)
+      fireAt: fireAt, sourceRevision: revision)
     guard valid(result) else { return nil }
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     guard let triggerDate = calendar.date(from: trigger.dateComponents),
-      triggerDate.timeIntervalSince1970 == ceil(result.fireAt.timeIntervalSince1970) else { return nil }
+      triggerDate.timeIntervalSinceReferenceDate == ceil(result.fireAt.timeIntervalSinceReferenceDate) else { return nil }
     return result
   }
 
   private static func valid(_ intent: NotificationIntent) -> Bool {
-    let timestamp = intent.fireAt.timeIntervalSince1970
+    let timestamp = intent.fireAt.timeIntervalSinceReferenceDate
     return intent.id.hasPrefix(NotificationIntent.identifierPrefix)
       && intent.id.count > NotificationIntent.identifierPrefix.count
       && intent.sourceRevision > 0 && !intent.title.isEmpty && intent.title.count <= 512
-      && timestamp.isFinite && timestamp >= -62_135_596_800 && ceil(timestamp) < 253_402_300_800
+      && timestamp.isFinite && timestamp >= -63_113_904_000 && ceil(timestamp) < 252_423_993_600
   }
 }

@@ -63,3 +63,31 @@ extension UserNotificationMappingTests {
     #expect(UserNotificationMapping.foregroundOptions(for: foreign).isEmpty)
   }
 }
+extension UserNotificationMappingTests {
+  @Test func referenceEpochPrecisionSurvivesNativeMappingExactly() throws {
+    let fire = Date(timeIntervalSinceReferenceDate: 800_000_000.0.nextUp)
+    let intent = NotificationIntent(id: "argus.reminder.precise", reminderID: UUID(), title: "Fixture", fireAt: fire, sourceRevision: 1)
+    let request = try UserNotificationMapping.request(for: intent, now: fire.addingTimeInterval(-60))
+    let roundtrip = try #require(UserNotificationMapping.intent(from: request))
+    #expect(roundtrip == intent)
+    #expect(roundtrip.fireAt.timeIntervalSinceReferenceDate.bitPattern == fire.timeIntervalSinceReferenceDate.bitPattern)
+    let trigger = try #require(request.trigger as? UNCalendarNotificationTrigger)
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+    #expect(try #require(calendar.date(from: trigger.dateComponents)) >= fire)
+  }
+}
+extension UserNotificationMappingTests {
+  @Test func readsLegacyUnixMetadataAndRejectsUnknownVersions() throws {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let intent = NotificationIntent(id: "argus.reminder.legacy", reminderID: UUID(), title: "Fixture", fireAt: now.addingTimeInterval(60), sourceRevision: 1)
+    let mapped = try UserNotificationMapping.request(for: intent, now: now)
+    let content = UNMutableNotificationContent()
+    content.userInfo = ["reminderID": intent.reminderID.uuidString, "sourceTitle": intent.title, "sourceRevision": "1", "fireAt": intent.fireAt.timeIntervalSince1970]
+    let legacy = UNNotificationRequest(identifier: intent.id, content: content, trigger: mapped.trigger)
+    #expect(UserNotificationMapping.intent(from: legacy) == intent)
+    content.userInfo["mappingVersion"] = "999"
+    let unknown = UNNotificationRequest(identifier: intent.id, content: content, trigger: mapped.trigger)
+    #expect(UserNotificationMapping.intent(from: unknown) == nil)
+  }
+}
