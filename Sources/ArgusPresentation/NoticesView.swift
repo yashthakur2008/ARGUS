@@ -12,6 +12,9 @@ struct NoticesView: View {
     showHistory ? model.recovery.notices : model.recovery.activeNotices
   }
 
+  var noticeIssue: String? { model.noticesUnavailableMessage ?? model.recovery.issue }
+  var emptyTitle: String { model.noticesUnavailableMessage == nil ? "No notices here" : "Notices unavailable" }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 18) {
       Text("Notices").font(.system(size: 32, weight: .semibold, design: .rounded))
@@ -21,11 +24,15 @@ struct NoticesView: View {
         Text("Needs attention").tag(false)
         Text("History · all notices").tag(true)
       }.pickerStyle(.segmented)
-      if let issue = model.recovery.issue {
+      if let issue = noticeIssue {
         Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
       }
+      if model.noticesUnavailableMessage != nil {
+        Button("Retry loading notices") { Task { await model.refresh() } }
+          .disabled(model.isWorking || model.isReconciling)
+      }
       if shownNotices.isEmpty {
-        ContentUnavailableView("No notices here", systemImage: "bell", description: Text("Notices are saved when a scheduled reminder time becomes due."))
+        ContentUnavailableView(emptyTitle, systemImage: "bell", description: Text("Notices are saved when a scheduled reminder time becomes due."))
       } else {
         ScrollView {
           LazyVStack(alignment: .leading, spacing: 12) {
@@ -36,6 +43,7 @@ struct NoticesView: View {
       Text("Dismiss affects only a notice. Rescheduling retains the old notice until separately dismissed. Deleting a source removes its related history.")
         .font(.caption).foregroundStyle(.secondary)
     }.padding(30)
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .sheet(item: $editor) { session in
         ReminderEditor(model: model, draft: session.draft,
           context: "This notice remains in history and needs separate dismissal, even if you reschedule its source.")

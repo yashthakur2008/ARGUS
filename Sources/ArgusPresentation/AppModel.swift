@@ -45,6 +45,10 @@ public final class AppModel {
     return "Saved locally · \(result.scheduledCount) notifications scheduled with macOS"
   }
 
+  public var noticesUnavailableMessage: String? {
+    readFailed ? "Notices unavailable. Previously loaded history may be out of date. Retry loading notices to check current data." : nil
+  }
+
   public func refresh() async {
     refreshSequence += 1
     let sequence = refreshSequence
