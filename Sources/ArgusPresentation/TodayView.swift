@@ -20,6 +20,7 @@ public struct TodayView: View {
         List(selection: $destination) {
           Label("Today", systemImage: "sun.max").tag(Destination.today)
           Label("All reminders", systemImage: "tray.full").tag(Destination.all)
+          Label("Notices", systemImage: "bell.badge").tag(Destination.notices)
           Label("Settings", systemImage: "slider.horizontal.3").tag(Destination.settings)
         }.listStyle(.sidebar)
         VStack(alignment: .leading, spacing: 6) {
@@ -29,6 +30,7 @@ public struct TodayView: View {
       }.navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
     } detail: {
       if destination == .settings { SettingsView(model: model) }
+      else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
     }
     .frame(minWidth: 820, minHeight: 600)
@@ -42,7 +44,7 @@ public struct TodayView: View {
       set: { if !$0 { model.cancelDeletion() } })) {
       VStack(alignment: .leading, spacing: 18) {
         Label("Delete this reminder?", systemImage: "trash").font(.title2.weight(.semibold))
-        Text(model.pendingDeletion.map { "“\($0.title)” will be removed from this Mac. This cannot be undone." } ?? "")
+        Text(model.pendingDeletion.map { "“\($0.title)” and its notice history will be removed from this Mac. This cannot be undone." } ?? "")
         Text("Confirmation expires after five minutes. A changed reminder must be reviewed again.")
           .font(.caption).foregroundStyle(.secondary)
         HStack {
@@ -69,6 +71,15 @@ public struct TodayView: View {
       }
       CommandBar(model: model)
       NoticeView(model: model)
+      if model.recovery.attentionCount > 0 {
+        Button { destination = .notices } label: {
+          HStack {
+            Label("\(model.recovery.attentionCount) reminder\(model.recovery.attentionCount == 1 ? " needs" : "s need") attention", systemImage: "bell.badge")
+            Spacer()
+            Text("Review notices").foregroundStyle(.secondary)
+          }.font(.callout).padding(12)
+        }.buttonStyle(.plain).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+      }
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
           if destination == .all {
@@ -157,6 +168,6 @@ public struct TodayView: View {
   }
 }
 
-private enum Destination: Hashable { case today, all, settings }
+private enum Destination: Hashable { case today, all, notices, settings }
 private struct EditorSession: Identifiable { let id = UUID(); var draft: ReminderDraft }
 private struct SnoozeSession: Identifiable { let id = UUID(); let reminder: Reminder; let until: Date }

@@ -14,6 +14,7 @@ public final class AppModel {
   public private(set) var referenceDate: Date
   public private(set) var isWorking = false
   public private(set) var isReconciling = false
+  public let recovery: ReminderRecoveryModel
   public let store: ReminderStore
   private let clock: @Sendable () -> Date
   private let reconciler: NotificationReconciler
@@ -27,6 +28,7 @@ public final class AppModel {
     clock: @escaping @Sendable () -> Date,
     requestPermission: (@Sendable () async throws -> Void)? = nil) {
     self.store = store
+    self.recovery = ReminderRecoveryModel(store: store)
     self.clock = clock
     self.referenceDate = clock()
     self.reconciler = NotificationReconciler(store: store, client: client)
@@ -49,6 +51,7 @@ public final class AppModel {
     referenceDate = clock()
     do {
       reminders = try store.list()
+      try recovery.refresh(now: referenceDate)
       if readFailed { message = nil }
       readFailed = false
     } catch {
@@ -59,7 +62,7 @@ public final class AppModel {
       return
     }
     isReconciling = true
-    let checked = await reconciler.reconcile(now: referenceDate, horizon: referenceDate.addingTimeInterval(7 * 86400))
+    let checked = await reconciler.reconcileSystemNotifications(now: referenceDate)
     guard sequence == refreshSequence else { return }
     result = checked
     isReconciling = false
@@ -178,6 +181,33 @@ public final class AppModel {
       message = nil
     } catch { message = "Could not snooze. Please review the reminder. \(error)" }
     await refresh()
+  }
+
+  public func dismissNotice(_ notice: ReminderNotice) async {
+    guard !isWorking else { return }
+    isWorking = true
+    defer { isWorking = false }
+    if recovery.dismiss(notice, now: clock()) { await refresh() }
+  }
+
+  @discardableResult public func snoozeNotice(_ notice: ReminderNotice, occurrenceAt: Date?, until: Date,
+    expectedRevision: Int64) async -> Bool {
+    guard !isWorking else { return false }
+    isWorking = true
+    defer { isWorking = false }
+    let succeeded = recovery.snooze(notice, occurrenceAt: occurrenceAt, until: until,
+      expectedRevision: expectedRevision, now: clock())
+    if succeeded { await refresh() }
+    return succeeded
+  }
+
+  @discardableResult public func saveNotificationPolicy(_ policy: NotificationPolicy, expectedRevision: Int64) async -> Bool {
+    guard !isWorking else { return false }
+    isWorking = true
+    defer { isWorking = false }
+    let succeeded = recovery.savePolicy(policy, expectedRevision: expectedRevision)
+    if succeeded { await refresh() }
+    return succeeded
   }
 
   public func enableNotifications() async {
