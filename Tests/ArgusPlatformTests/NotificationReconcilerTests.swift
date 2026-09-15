@@ -365,3 +365,38 @@ func knownStaleAddIsRemovedEvenWhenNextPendingFails(revoke: Bool) async throws {
   #expect(pending.first?.fireAt == quiet.nextAllowedDate(for: reminder.dueAt))
   #expect(try store.list().first?.dueAt == reminder.dueAt)
 }
+
+@Test func systemReconciliationRetainsFoldDeferredAdvanceAlertAfterRestartAndDeadline() async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let url = directory.appendingPathComponent("state.sqlite")
+  let formatter = ISO8601DateFormatter()
+  let now = formatter.date(from: "2026-11-01T08:00:00Z")!
+  let due = formatter.date(from: "2026-11-01T09:15:00Z")!
+  let deferred = formatter.date(from: "2026-11-01T10:00:00Z")!
+  let reminder = try Reminder(title: "Fold", dueAt: due, timeZoneID: "America/Los_Angeles",
+    createdAt: now, updatedAt: now, alertOffsets: [0, 1500])
+  let quiet = try QuietHours(startHour: 1, startMinute: 45, endHour: 2, endMinute: 0,
+    timeZoneID: "America/Los_Angeles")
+  do {
+    let store = try ReminderStore(databaseURL: url)
+    try store.save(reminder, expectedRevision: nil)
+    try store.saveNotificationPolicy(NotificationPolicy(quietHours: quiet), expectedRevision: 1)
+  }
+  let reopened = try ReminderStore(databaseURL: url)
+  let client = FakeNotifications()
+  let reconciler = NotificationReconciler(store: reopened, client: client)
+  let bounded = await reconciler.reconcile(now: now, horizon: deferred)
+  #expect(!bounded.isPending)
+  #expect(bounded.scheduledCount == 2)
+  let system = await reconciler.reconcileSystemNotifications(now: now)
+  #expect(!system.isPending)
+  #expect(system.scheduledCount == 2)
+  #expect(try await client.pending().map(\.fireAt).sorted() == [due, deferred])
+  // System mode must retain the delayed advance alert even once dueAt has passed.
+  let afterDeadline = await reconciler.reconcileSystemNotifications(now: formatter.date(from: "2026-11-01T09:30:00Z")!)
+  #expect(!afterDeadline.isPending)
+  #expect(afterDeadline.scheduledCount == 1)
+  #expect(try await client.pending().map(\.fireAt) == [deferred])
+}
