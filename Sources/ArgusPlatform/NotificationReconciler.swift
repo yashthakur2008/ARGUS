@@ -67,7 +67,30 @@ public actor NotificationReconciler {
       guard try store.generation() == generation else { return outcome(nil, stale: true) }
       authorization = await client.authorizationStatus()
       guard try store.generation() == generation else { return outcome(nil, stale: true) }
-      let pending = try await client.pending().filter { $0.id.hasPrefix(NotificationIntent.identifierPrefix) }
+      let pending: [NotificationIntent]
+      do {
+        pending = try await client.pending().filter { $0.id.hasPrefix(NotificationIntent.identifierPrefix) }
+      } catch PendingNotificationError.malformedOwnedRequests(let ids) {
+        // Enumeration stays read-only. Only this fenced path may recover known
+        // current/legacy corruption. Never turn arbitrary adapter errors into deletes.
+        guard !ids.isEmpty, ids.allSatisfy({ $0.hasPrefix(NotificationIntent.identifierPrefix) }) else {
+          return outcome("Invalid malformed-notification recovery IDs; no requests removed")
+        }
+        guard try await isCurrent(generation: generation, authorization: authorization) else { return outcome(nil, stale: true) }
+        await client.remove(ids: ids)
+        guard try await isCurrent(generation: generation, authorization: authorization) else { return outcome(nil, stale: true) }
+        // One cleanup attempt per pass. A failed read, surviving corruption or
+        // unsupported version fails closed, rather than repeatedly deleting IDs.
+        let verified = try await client.pending()
+        guard try await isCurrent(generation: generation, authorization: authorization) else { return outcome(nil, stale: true) }
+        let removedIDs = Set(ids)
+        guard !verified.contains(where: { removedIDs.contains($0.id) }) else {
+          return outcome("Malformed pending notification removal could not be verified; retry required")
+        }
+        pending = verified.filter { $0.id.hasPrefix(NotificationIntent.identifierPrefix) }
+        // OS removal is by ID, not compare-and-delete. These generation fences
+        // cannot protect a same-ID replacement made by an independent writer.
+      }
       guard try await isCurrent(generation: generation, authorization: authorization) else { return outcome(nil, stale: true) }
       let allowed = authorization == .authorized || authorization == .provisional
       if !allowed {

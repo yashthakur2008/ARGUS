@@ -8,6 +8,31 @@ public enum NotificationMappingError: Error { case invalidIntent, malformedPendi
 /// Exact source timestamps stay in metadata for reconciliation.
 /// Pure conversion only. This type never obtains the system notification center.
 public enum UserNotificationMapping {
+  static func pendingIntents(from requests: [UNNotificationRequest]) throws -> [NotificationIntent] {
+    var intents: [NotificationIntent] = []
+    var malformed: [String] = []
+    var unsupported: [String] = []
+    for request in requests where request.identifier.hasPrefix(NotificationIntent.identifierPrefix) {
+      // Check versions before decoding payloads. Non-string metadata is ambiguous,
+      // not evidence that a future request is safe to destroy.
+      if let version = request.content.userInfo["mappingVersion"], version as? String != "2" {
+        unsupported.append(request.identifier)
+      } else if let intent = intent(from: request) {
+        intents.append(intent)
+      } else {
+        malformed.append(request.identifier)
+      }
+    }
+    // Scan the entire snapshot before allowing any recoverable error to escape.
+    if !unsupported.isEmpty {
+      throw PendingNotificationError.unsupportedMappingVersions(ids: unsupported.sorted())
+    }
+    if !malformed.isEmpty {
+      throw PendingNotificationError.malformedOwnedRequests(ids: malformed.sorted())
+    }
+    return intents
+  }
+
   public static func foregroundOptions(for request: UNNotificationRequest) -> UNNotificationPresentationOptions {
     intent(from: request) == nil ? [] : [.banner, .sound]
   }

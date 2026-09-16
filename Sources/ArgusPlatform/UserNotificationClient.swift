@@ -41,12 +41,7 @@ public actor UserNotificationClient: NotificationClient {
     try await withCheckedThrowingContinuation { continuation in
       center.getPendingNotificationRequests { requests in
         do {
-          let intents = try requests.filter { $0.identifier.hasPrefix(NotificationIntent.identifierPrefix) }.map {
-            guard let intent = UserNotificationMapping.intent(from: $0) else {
-              throw NotificationMappingError.malformedPendingRequest
-            }
-            return intent
-          }
+          let intents = try UserNotificationMapping.pendingIntents(from: requests)
           continuation.resume(returning: intents)
         } catch { continuation.resume(throwing: error) }
       }
