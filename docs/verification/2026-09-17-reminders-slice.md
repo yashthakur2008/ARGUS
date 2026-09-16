@@ -98,3 +98,28 @@ Native create/restart/snooze/delete paths were exercised. Native editor text-ent
 - Prompt library, multi-hand runtime, optional voice, calendar adapter, or complete global stop behavior.
 
 No notification permission was requested by these tests, no personal reminders were created, and no network request is part of the core runtime.
+
+
+## Recovery and review checkpoint, 2026-09-18 03:36 UTC
+
+The coordinator independently reran `scripts/verify.sh` against commits `6458d72` and `d77f2c1`: **134 tests passed**, release build, development bundle, plist, ad-hoc signature, and runtime dependency/path checks passed. The command exited 0. This supersedes the earlier 94-test checkpoint, not its historical failure observations.
+
+- Earlier presentation findings and the stale-clock snooze defect are fixed. A subsequent native ten-minute snooze measured exactly **600.0 seconds** between action time and snoozed time, preserving the original deadline.
+- Schema 2 persists notification policy and due-notice history with migration, rollback, optimistic concurrency, and exact occurrence provenance tests.
+- Review found quiet-hours deferral is not monotone across a DST fold. An advance alert could be deferred later than the deadline and omitted from the system plan. `d77f2c1` derives the horizon from all effective candidate times. Real repository and controlled reconciler regressions cover both alerts and restart between them.
+- Review found Notices could hide a failed storage refresh behind an empty or stale list. `6458d72` qualifies unavailable/cached history, offers retry, and covers corrupt reminder and policy payloads in real SQLite. Its top-anchored layout correction is not yet independently native-verified.
+
+### Second isolated native demonstration, approximately 03:21–03:31 UTC
+
+Using a new disposable `ARGUS_DATA_DIR`, the coordinator seeded two synthetic reminders through the production store API, then used the actual native application and read-only fixture inspection:
+
+1. Refresh captured one due notice. Notices explained that records are not delivery receipts.
+2. Dismiss retained the notice in history and left both source reminders uncompleted.
+3. Native settings saved quiet hours 22:00–08:00 in America/Los_Angeles, bypass false, policy revision 2.
+4. Explicit Quit ended the observed process. Relaunch retained the dismissed notice without duplicate catch-up and displayed the saved quiet-hours interval and zone.
+5. Native Snooze 10 minutes on the upcoming reminder persisted revision 2 and exactly 600.0 seconds from its fresh action timestamp, without changing its original deadline.
+6. The app was quit after the demonstration. No notification authorization, personal data, login helper, or live notification banner was involved.
+
+The coordinator also reran the actual notification mapping API with a reference-date `Double.nextUp` value: original and recovered bit patterns matched exactly. This verifies metadata precision, not operating-system delivery.
+
+Remaining gates include native fault/retry presentation and layout verification, complete editor/accessibility journeys, live permission/Focus/banner/sleep/reboot behavior, signed sandbox/XPC/Keychain boundaries, and App Store archive/review. Reminder storage remains explicitly plaintext. Prompt library, hands, voice, and calendar are not implemented by this checkpoint.
