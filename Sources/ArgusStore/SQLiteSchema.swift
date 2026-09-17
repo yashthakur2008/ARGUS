@@ -4,9 +4,9 @@ import CSQLite
 extension SQLiteDatabase {
   func prepareSchema() throws {
     // Preflight payloads as well as identities before persistent header changes.
-    _ = try checkedSchemaVersion()
+    _ = try transaction(write: false) { try checkedSchemaVersion() }
     try execute("PRAGMA foreign_keys = ON")
-    try execute("PRAGMA journal_mode = WAL")
+    try enableWAL()
     try execute("PRAGMA synchronous = FULL")
     try transaction {
       let version = try checkedSchemaVersion()

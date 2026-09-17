@@ -66,13 +66,16 @@ func rawScalar(_ url: URL, _ sql: String) throws -> Int64 {
   #expect(try rawScalar(url, "PRAGMA user_version") == 1)
 }
 
-@Test func recoveryConcurrentMigrationAndWritersPreserveOptimism() async throws {
+@Test(arguments: 0..<20)
+func recoveryConcurrentMigrationAndWritersPreserveOptimism(_ iteration: Int) async throws {
   let (url, reminder) = try fixture()
   defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
   try createVersionOne(url, reminder: reminder)
+  let start = MigrationStartGate()
   let wins = try await withThrowingTaskGroup(of: Int.self) { group in
     for _ in 0..<2 {
       group.addTask {
+        await start.wait()
         let store = try ReminderStore(databaseURL: url)
         do { try store.save(reminder, expectedRevision: 1); return 1 }
         catch StoreError.conflict { return 0 }
@@ -85,4 +88,90 @@ func rawScalar(_ url: URL, _ sql: String) throws -> Int64 {
   #expect(wins == 1)
   #expect(try rawScalar(url, "PRAGMA user_version") == 2)
   #expect(try ReminderStore(databaseURL: url).generation() == 18)
+}
+
+// Release both openers together without blocking Swift's cooperative executor.
+private actor MigrationStartGate {
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+
+  func wait() async {
+    await withCheckedContinuation { continuation in
+      waiters.append(continuation)
+      if waiters.count == 2 {
+        for waiter in waiters { waiter.resume() }
+        waiters.removeAll()
+      }
+    }
+  }
+}
+
+@Test(arguments: 0..<20)
+func recoveryConcurrentFreshDatabaseOpens(_ iteration: Int) async throws {
+  let (url, _) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  let start = MigrationStartGate()
+  try await withThrowingTaskGroup(of: Void.self) { group in
+    for _ in 0..<2 {
+      group.addTask {
+        await start.wait()
+        let store = try ReminderStore(databaseURL: url)
+        #expect(try store.list().isEmpty)
+        #expect(try store.generation() == 0)
+      }
+    }
+    try await group.waitForAll()
+  }
+  #expect(try rawScalar(url, "PRAGMA user_version") == 2)
+}
+
+@Test func recoveryWALTransitionWaitsForWriterAndPreservesMigration() async throws {
+  let (url, reminder) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  try createVersionOne(url, reminder: reminder)
+  var writer: OpaquePointer?
+  #expect(sqlite3_open(url.path, &writer) == SQLITE_OK)
+  defer { sqlite3_close(writer) }
+  #expect(sqlite3_exec(writer, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK)
+  defer { sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) }
+  try await withThrowingTaskGroup(of: Void.self) { group in
+    group.addTask {
+      let store = try ReminderStore(databaseURL: url)
+      #expect(try store.list() == [reminder])
+      #expect(try store.generation() == 17)
+    }
+    try await Task.sleep(for: .milliseconds(150))
+    #expect(sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) == SQLITE_OK)
+    try await group.waitForAll()
+  }
+  #expect(try rawScalar(url, "PRAGMA user_version") == 2)
+  #expect(try rawScalar(url, "SELECT journal_mode = 'wal' FROM pragma_journal_mode") == 1)
+}
+
+@Test func recoveryWALTransitionExhaustionLeavesSchemaAndBytesUnchanged() throws {
+  let (url, reminder) = try fixture()
+  defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+  try createVersionOne(url, reminder: reminder)
+  let before = try Data(contentsOf: url)
+  var writer: OpaquePointer?
+  #expect(sqlite3_open(url.path, &writer) == SQLITE_OK)
+  defer { sqlite3_close(writer) }
+  #expect(sqlite3_exec(writer, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK)
+  defer { sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) }
+  let clock = ContinuousClock()
+  let start = clock.now
+  do {
+    _ = try ReminderStore(databaseURL: url)
+    Issue.record("Opening under a held rollback-journal writer must fail")
+  } catch StoreError.sqlite(let code, _) {
+    #expect(code == SQLITE_BUSY)
+  }
+  let elapsed = start.duration(to: clock.now)
+  #expect(elapsed >= .milliseconds(150))
+  #expect(elapsed < .seconds(5))
+  #expect(try Data(contentsOf: url) == before)
+  #expect(sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) == SQLITE_OK)
+  #expect(try rawScalar(url, "PRAGMA user_version") == 1)
+  #expect(try rawScalar(url, "SELECT journal_mode = 'delete' FROM pragma_journal_mode") == 1)
+  #expect(try rawScalar(url, "SELECT count(*) FROM sqlite_master WHERE name = 'notification_policy'") == 0)
+  #expect(try ReminderStore(databaseURL: url).generation() == 17)
 }

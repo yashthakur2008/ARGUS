@@ -63,6 +63,33 @@ final class SQLiteDatabase {
     }
   }
 
+  /// Journal transitions can return BUSY without invoking SQLite's busy handler.
+  /// Retry only this idempotent setup operation, outside any transaction, with a
+  /// monotonic budget. Disable the handler here so each attempt cannot add 2s.
+  func enableWAL() throws {
+    try check(sqlite3_busy_timeout(handle, 0))
+    defer { _ = sqlite3_busy_timeout(handle, 2_000) }
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: .seconds(2))
+    while true {
+      do {
+        try statement("PRAGMA journal_mode = WAL") { statement in
+          guard try step(statement) == SQLITE_ROW,
+            try text(statement, at: 0).lowercased() == "wal",
+            try step(statement) == SQLITE_DONE else {
+            throw StoreError.corruption("SQLite did not enable WAL journaling")
+          }
+        }
+        return
+      } catch let error as StoreError {
+        guard case .sqlite(let code, _) = error, code == SQLITE_BUSY else { throw error }
+        guard clock.now < deadline else { throw error }
+        // The failed statement has finalized before waiting or retrying.
+        sqlite3_sleep(10)
+      }
+    }
+  }
+
   func scalar(_ sql: String) throws -> Int64 {
     try statement(sql) { statement in
       guard try step(statement) == SQLITE_ROW, sqlite3_column_type(statement, 0) == SQLITE_INTEGER else {
