@@ -4,7 +4,7 @@ A native macOS, local-first assistant for reminders, reusable prompts, and bound
 
 **Status: working reminder development prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and a native notification adapter. It has no runtime language model, cloud backend, shell agent, or Jcode dependency.
 
-At the latest independently verified checkpoint, **134 Swift Testing tests passed**, release bundling/signature checks passed, and isolated native-app demonstrations exercised typed creation, persistence across Quit/relaunch, exact ten-minute snooze, delete confirmation, notice dismissal, and persisted quiet-hours settings. Review regressions are fixed and tested. Actual notification delivery and release sandbox/signing remain unverified. [Read the evidence and limitations](docs/verification/2026-09-17-reminders-slice.md).
+At the latest independently verified checkpoint, the full Swift Testing suite passed (**150 reported, with two opt-in profiling tests skipped**), as did release bundling/signature checks and 400 repeated concurrent-startup scenarios. Separate release profiling passed both opt-in tests. Earlier isolated native demonstrations exercised creation, Quit/relaunch, exact ten-minute snooze, delete confirmation, notice dismissal, and persisted quiet hours. Actual notification delivery and release sandbox/signing remain unverified. See the [native evidence](docs/verification/2026-09-17-reminders-slice.md) and [latest reliability checks and limitations](docs/verification/2026-09-18-improvement-batch.md).
 
 ## Available in the prototype
 
