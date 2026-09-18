@@ -21,11 +21,19 @@ Persisted quiet-hours settings, notice history with independent dismissal, and b
 
 ## Clap, name activation and appearance
 
-Open **Settings → Local activation**, choose **Clap**, **Say Argus**, or **Clap or say Argus**, then press **Enable listening**. Listening is off on every launch, and no permission prompt appears until you enable it. Clap-only needs microphone permission. Name activation additionally needs Speech permission and supported local US English speech resources. Missing support produces an unavailable state, with an explicit clap-only choice rather than a server fallback.
+Open **Settings → Local activation**, choose **Clap**, **Say Argus**, or **Clap or say Argus**, then press **Start listening** for one session. Clap-only needs microphone permission. Name activation additionally needs Speech permission and supported local US English speech resources. Missing support produces an unavailable state, with an explicit clap-only choice rather than a server fallback.
 
-Activation shows a brief colored border around connected screens. It does not execute spoken commands, alter reminders, or generate a spoken reply. **Preview glow** works without microphone access. In **Appearance**, select a preset or enter a six-digit hex color to change the accent and glow.
+In **Voice experience**, **Always listen** remembers your opt-in and resumes after observed unlock when permissions are already granted. Turning it off or pressing **Stop listening** immediately stops capture and speech and prevents later resume. Sleep/lock pause audio; Quit stops it. A cold launch waits for an observed unlock or explicit Start because public session APIs do not establish initial lock state. No automatic path requests microphone or Speech permission.
 
-The sidebar and menu bar expose listening status and **Stop listening**. Closing the window does not stop an enabled session, but Quit, sleep, screen lock, or session deactivation do. Re-enable manually after returning. There is no login helper. Audio buffers and recognition text are transient in memory, not saved or logged by ARGUS. Sharp sounds can be mistaken for claps; physical detection depends on microphone, room noise, and speech recognition quality. Normal local speech tasks renew within the same enabled session; errors stop listening and require an explicit retry.
+**Spoken responses** enables a short deterministic “I'm here” using ElevenLabs voice `ysswSXp8U9dFpzPJqFje`. In **ElevenLabs voice**, save your API key through the secure input and explicitly allow response text to be sent to ElevenLabs. **Test voice** sends a fixed sample without enabling the microphone. Requests may use your provider credits. Only the short response text is sent, not microphone audio or recognition transcripts. Capture pauses during speech to avoid self-triggering. This is text-to-speech, not a conversational model, and there is no fallback to the macOS voice.
+
+The development build stores the key in the macOS login Keychain with current-app access controls, not source files or UserDefaults. This is not production broker-private storage; ad-hoc rebuilds and locked Keychains can make access unavailable. Save/check/remove are explicit actions. Revoking transmission consent or changing/removing the key cancels current speech. Account entitlement, voice availability and naturalness require an authorized live test and are not proven by the automated tests.
+
+**Launch at login** is a separate explicit toggle backed by macOS login registration. It does not grant microphone permission or enable Always listen. Status distinguishes enabled, disabled, pending OS approval, and unavailable configurations. No helper continues listening after Quit.
+
+Activation shows a brief emerald/accent-colored gradient pulse around connected screens. It does not execute spoken commands or alter reminders. **Preview glow** works without microphone access. In **Appearance**, select a preset or enter a six-digit hex color; **Reduce motion** disables the pulse and orb transitions. The macOS Reduce Motion setting always takes precedence. The sidebar orb reports off/listening/speaking, not a simulated audio waveform.
+
+Audio buffers and recognition text are transient in memory, not saved or logged by ARGUS. Sharp sounds can be mistaken for claps; physical detection depends on microphone, room noise, and speech recognition quality. Normal local recognition tasks renew within an enabled session; errors stop listening and require explicit recovery. Physical recognition, audio output quality, and actual launch-at-login behavior need separate native verification.
 
 The icon is original project artwork, not an extracted game asset. It is built locally from the checked-in PNG with macOS tools. Image generation was a development activity, not a runtime dependency.
 
@@ -67,7 +75,7 @@ The briefing wording currently creates a reminder, not an AI worker. Unsupported
 
 Reminder storage is local **plaintext SQLite**, not encrypted. Visible notification text is generic, but local macOS notification metadata includes the reminder title for reconciliation. No API keys or network integration are used by this slice. Actual OS banner delivery, permission/Focus behavior, sleep/wake, and release sandbox confinement have not yet been verified. Recurring scheduling currently uses a rolling window, so do not treat this prototype as your sole source of critical alerts.
 
-Closing the window leaves the app process running. Explicit Quit stops ARGUS computation, although previously registered system notifications can remain. No login item or after-Quit helper is installed. There is no hard-real-time delivery promise across sleep, shutdown, Focus, or permission denial.
+Closing the window leaves the app process running. Explicit Quit stops ARGUS computation, although previously registered system notifications can remain. Launch-at-login registration is opt-in; no after-Quit listening helper is installed. There is no hard-real-time delivery promise across sleep, shutdown, Focus, or permission denial.
 
 ## Intended MVP, still being built
 
