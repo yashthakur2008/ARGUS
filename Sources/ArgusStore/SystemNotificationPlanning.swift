@@ -15,11 +15,19 @@ extension ReminderStore {
           if reminder.recurrence != nil {
             horizon = min(StoreDates.maximum, now.addingTimeInterval(StoreDates.week))
           } else {
-            let lastCandidate = reminder.snoozedUntil ?? reminder.dueAt
-            let lastAllowed = policy.bypassQuietHours ? lastCandidate
-              : policy.quietHours?.nextAllowedDate(for: lastCandidate) ?? lastCandidate
-            try StoreDates.validate(lastAllowed)
-            horizon = max(now, lastAllowed)
+            // A one-time snooze replaces every original offset, including an empty list.
+            let candidates = reminder.snoozedUntil.map { [$0] }
+              ?? reminder.alertOffsets.map { reminder.dueAt.addingTimeInterval(-$0) }
+            // Validate raw arithmetic before handing any candidate to Calendar policy work.
+            for candidate in candidates { try StoreDates.validate(candidate) }
+            let allowed = try candidates.map { candidate in
+              let fireAt = policy.bypassQuietHours ? candidate
+                : policy.quietHours?.nextAllowedDate(for: candidate) ?? candidate
+              try StoreDates.validate(fireAt)
+              return fireAt
+            }
+            // Deferral is not monotone across DST folds: an advance alert can fire last.
+            horizon = max(now, allowed.max() ?? now)
           }
           return try ScheduleCalculator.notifications(for: reminder, now: now, horizon: horizon,
             quietHours: policy.quietHours, bypassQuietHours: policy.bypassQuietHours)
