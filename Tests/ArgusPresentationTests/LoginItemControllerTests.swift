@@ -78,6 +78,15 @@ struct LoginItemControllerTests {
     controller.setEnabled(false)
     #expect(controller.errorMessage == nil)
   }
+  @Test func unavailableCopyDoesNotAssumeAppIsNotInstalled() {
+    let service = FakeLoginItemService()
+    service.currentStatus = .unavailable
+    let controller = LoginItemController(service: service)
+    #expect(controller.statusText == "Launch at login is unavailable. macOS cannot recognize the login service in this build or installation.")
+    #expect(!controller.isEnabled)
+    #expect(service.changes.isEmpty)
+  }
+
   @Test func repeatedRefreshNeverMutatesAndObservesExternalChanges() {
     let service = FakeLoginItemService()
     let controller = LoginItemController(service: service)

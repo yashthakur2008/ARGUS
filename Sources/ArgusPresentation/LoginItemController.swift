@@ -16,7 +16,7 @@ public final class LoginItemController {
     case .disabled: "Launch at login is off."
     case .enabled: "Launch at login is enabled."
     case .requiresApproval: "Launch at login requires approval in System Settings › General › Login Items."
-    case .unavailable: "Launch at login is unavailable for this app configuration. Use an installed app bundle."
+    case .unavailable: "Launch at login is unavailable. macOS cannot recognize the login service in this build or installation."
     }
   }
 
