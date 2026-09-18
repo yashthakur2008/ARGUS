@@ -16,6 +16,8 @@
 
 Raw red/green test output, task cards, and resource checks are retained in the local overnight run `overnight_1789716322778_9474728396623280354`. Tests use synthetic credentials and replaceable network/audio boundaries. No authorized live ElevenLabs speech test has been completed.
 
+See the [source privacy API inventory](2026-09-18-privacy-api-inventory.md) for concrete preferences, elapsed-time, microphone, recognition, networking and packaging review points. No privacy reason codes or compliance outcome have been asserted.
+
 ## Release gates
 
 | Gate | Current evidence | Required before making the corresponding release claim |
