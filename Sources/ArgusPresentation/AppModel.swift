@@ -38,12 +38,13 @@ public final class AppModel {
     clock: @escaping @Sendable () -> Date,
     requestPermission: (@Sendable () async throws -> Void)? = nil,
     refreshLoader: any ReminderRefreshLoading,
-    draftWriter: (any ReminderDraftWriting)? = nil) {
+    draftWriter: (any ReminderDraftWriting)? = nil,
+    reconciler: NotificationReconciler? = nil) {
     self.store = store
     self.recovery = ReminderRecoveryModel(store: store)
     self.clock = clock
     self.referenceDate = clock()
-    self.reconciler = NotificationReconciler(store: store, client: client)
+    self.reconciler = reconciler ?? NotificationReconciler(store: store, client: client)
     self.requestPermission = requestPermission
     self.refreshLoader = refreshLoader
     self.draftWriter = draftWriter ?? ReminderDraftWriter(store: store)
@@ -99,7 +100,7 @@ public final class AppModel {
       failRefresh(error)
       return .failed
     }
-    let checked = await reconciler.reconcileSystemNotifications(now: now)
+    let checked = await reconciler.reconcileSystemNotifications(now: now, requestSequence: sequence)
     guard !draftWriteInFlight, sequence == refreshSequence else { return .superseded }
     result = checked
     isReconciling = false

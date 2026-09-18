@@ -10,6 +10,8 @@ public actor NotificationReconciler {
   private var running = false
   private var dirty = false
   private var latestWindow: (now: Date, horizon: Date?)?
+  private var highestRequestSequence: Int?
+  private var lastCompletion: ReconciliationResult?
   private var waiters: [CheckedContinuation<ReconciliationResult, Never>] = []
 
   public init(store: ReminderStore, client: any NotificationClient) {
@@ -21,18 +23,40 @@ public actor NotificationReconciler {
     await run(now: now, horizon: nil)
   }
 
+  /// One logical owner supplies increasing tokens; an equal token is the same
+  /// request. AppModel owns a private instance and uses only this entrypoint.
+  /// Obsolete calls join active work or reuse its completion without new I/O.
+  /// Mixing public unsequenced calls preserves their arrival-based overrides,
+  /// but forfeits ordered-window provenance. The sequence watermark never resets.
+  package func reconcileSystemNotifications(now: Date, requestSequence: Int) async -> ReconciliationResult {
+    await run(now: now, horizon: nil, requestSequence: requestSequence)
+  }
+
   /// Concurrent calls join a single flight and request a rerun using the latest window.
   /// A continuously changing source is bounded to 16 passes and reported as pending.
   public func reconcile(now: Date, horizon: Date) async -> ReconciliationResult {
     await run(now: now, horizon: horizon)
   }
 
-  private func run(now: Date, horizon: Date?) async -> ReconciliationResult {
+  /// Admission and logical window selection are one synchronous actor operation.
+  /// Internal visibility permits deterministic reordered-admission tests while
+  /// the actual reconciliation pass is gated at the fake notification boundary.
+  func admitWindow(now: Date, horizon: Date?, requestSequence: Int?) -> Bool {
+    if let requestSequence {
+      if let highestRequestSequence, requestSequence <= highestRequestSequence { return false }
+      highestRequestSequence = requestSequence
+    }
     latestWindow = (now, horizon)
     dirty = true
+    return true
+  }
+
+  private func run(now: Date, horizon: Date?, requestSequence: Int? = nil) async -> ReconciliationResult {
+    let admitted = admitWindow(now: now, horizon: horizon, requestSequence: requestSequence)
     if running {
       return await withCheckedContinuation { waiters.append($0) }
     }
+    if !admitted, let lastCompletion { return lastCompletion }
     running = true
     var result = ReconciliationResult(scheduledCount: 0, authorization: .notDetermined,
       generation: -1, isPending: true, error: "Reconciliation has not completed")
@@ -46,6 +70,7 @@ public actor NotificationReconciler {
         generation: result.generation, isPending: true, error: "Desired state or authorization changed during reconciliation; retry required")
     }
     running = false
+    lastCompletion = result
     let joined = waiters
     waiters.removeAll()
     for waiter in joined { waiter.resume(returning: result) }
