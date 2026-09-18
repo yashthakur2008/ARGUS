@@ -94,3 +94,26 @@ extension RecoveryModelTests {
     #expect(try model.store.reminder(id: item.id)?.snoozedOccurrenceAt == notice.occurrenceDates[0])
   }
 }
+
+extension RecoveryModelTests {
+  @Test func activeSnoozeConflictExplainsWhyNoticeRemainsAvailable() throws {
+    let (model, dir) = try fixture()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let anchor = ISO8601DateFormatter().date(from: "2026-09-14T10:00:00Z")!
+    let actionTime = anchor.addingTimeInterval(2 * 86400 + 3600)
+    let item = try Reminder(title: "Recurring fixture", dueAt: anchor, timeZoneID: "UTC",
+      createdAt: anchor, updatedAt: anchor, recurrence: .weekdays(hour: 10, minute: 0))
+    try model.store.save(item, expectedRevision: nil)
+    try model.recovery.refresh(now: actionTime)
+    let first = try #require(model.recovery.notices.first { $0.occurrenceDates == [anchor] })
+    let second = try #require(model.recovery.notices.first { $0.occurrenceDates == [anchor.addingTimeInterval(86400)] })
+    #expect(model.recovery.snooze(first, occurrenceAt: anchor,
+      until: actionTime.addingTimeInterval(600), expectedRevision: 1, now: actionTime))
+    #expect(!model.recovery.snooze(second, occurrenceAt: second.occurrenceDates.first,
+      until: actionTime.addingTimeInterval(1200), expectedRevision: 2, now: actionTime))
+    #expect(model.recovery.issue?.contains("different occurrence") == true)
+    #expect(model.recovery.issue?.contains("already") == true)
+    #expect(model.recovery.activeNotices.contains { $0.id == second.id })
+    #expect(try model.store.reminder(id: item.id)?.snoozedUntil == actionTime.addingTimeInterval(600))
+  }
+}

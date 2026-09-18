@@ -91,6 +91,16 @@ extension ReminderStore {
         guard !reminder.isCompleted, notice.occurrenceDates.contains(occurrenceAt) else {
           throw StoreError.noticeNoLongerApplicable(id)
         }
+        // A reminder has one snooze slot. Never silently discard a future alert for
+        // another occurrence when acting on an older notice. Legacy targets use dueAt.
+        if let snooze = reminder.snoozedUntil,
+          (reminder.snoozedOccurrenceAt ?? reminder.dueAt) != occurrenceAt {
+          let policy = try database.readPolicy()
+          let delivery = policy.bypassQuietHours
+            ? snooze : policy.quietHours?.nextAllowedDate(for: snooze) ?? snooze
+          try StoreDates.validate(delivery)
+          if delivery > now { throw StoreError.activeSnoozeConflict }
+        }
         reminder.snoozedUntil = until
         reminder.snoozedOccurrenceAt = occurrenceAt
         reminder.updatedAt = now

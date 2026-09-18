@@ -52,6 +52,9 @@ public final class ReminderRecoveryModel {
       notices = try store.notices(includeDismissed: true)
       issue = nil
       return true
+    } catch StoreError.activeSnoozeConflict {
+      issue = "A different occurrence already has a pending snooze. Open the source reminder to review it. This notice was not dismissed."
+      return false
     } catch { issue = "Could not snooze this notice. Please review the current reminder. \(error)"; return false }
   }
 

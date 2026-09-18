@@ -7,5 +7,6 @@ public enum StoreError: Error, Equatable, Sendable {
   case noticeDismissed(String)
   case noticeNoLongerApplicable(String)
   case invalidSnooze
+  case activeSnoozeConflict
   case revisionOverflow
 }
