@@ -2,7 +2,7 @@
 
 A native macOS, local-first assistant for reminders, reusable prompts, and bounded parallel work. Calm interface, explicit permissions, verified results.
 
-**Status: working reminder development prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and a native notification adapter. It has no runtime language model, cloud backend, shell agent, or Jcode dependency.
+**Status: working native reminder and activation prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and native platform adapters. It has no runtime generative language model, cloud backend, shell agent, or Jcode dependency. Optional name detection uses Apple's on-device speech recognizer, never a hosted assistant.
 
 At the latest independently verified checkpoint, the full Swift Testing suite passed (**150 reported, with two opt-in profiling tests skipped**), as did release bundling/signature checks and 400 repeated concurrent-startup scenarios. Separate release profiling passed both opt-in tests. Earlier isolated native demonstrations exercised creation, Quit/relaunch, exact ten-minute snooze, delete confirmation, notice dismissal, and persisted quiet hours. Actual notification delivery and release sandbox/signing remain unverified. See the [native evidence](docs/verification/2026-09-17-reminders-slice.md) and [latest reliability checks and limitations](docs/verification/2026-09-18-improvement-batch.md).
 
@@ -14,8 +14,20 @@ At the latest independently verified checkpoint, the full Swift Testing suite pa
 - A compact Today view with Now, Approaching, All reminders, and real settings.
 - One-use, expiring delete confirmation bound to the reviewed reminder.
 - Explicit notification opt-in, generic notification previews, and separate saved/pending/scheduled status. Scheduled never means observed delivery.
+- Opt-in clap or “Argus” detection, brief click-through screen-edge feedback, and a menu-bar microphone/stop control.
+- Original green guardian app icon and locally saved custom accent/glow colors.
 
 Persisted quiet-hours settings, notice history with independent dismissal, and bounded missed-alert recovery are implemented. Recovered notices record due times, not proof of notification delivery. One-time notifications are planned beyond the recurring seven-day window.
+
+## Clap, name activation and appearance
+
+Open **Settings → Local activation**, choose **Clap**, **Say Argus**, or **Clap or say Argus**, then press **Enable listening**. Listening is off on every launch, and no permission prompt appears until you enable it. Clap-only needs microphone permission. Name activation additionally needs Speech permission and supported local US English speech resources. Missing support produces an unavailable state, with an explicit clap-only choice rather than a server fallback.
+
+Activation shows a brief colored border around connected screens. It does not execute spoken commands, alter reminders, or generate a spoken reply. **Preview glow** works without microphone access. In **Appearance**, select a preset or enter a six-digit hex color to change the accent and glow.
+
+The sidebar and menu bar expose listening status and **Stop listening**. Closing the window does not stop an enabled session, but Quit, sleep, screen lock, or session deactivation do. Re-enable manually after returning. There is no login helper. Audio buffers and recognition text are transient in memory, not saved or logged by ARGUS. Sharp sounds can be mistaken for claps; physical detection depends on microphone, room noise, and speech recognition quality. Normal local speech tasks renew within the same enabled session; errors stop listening and require an explicit retry.
+
+The icon is original project artwork, not an extracted game asset. It is built locally from the checked-in PNG with macOS tools. Image generation was a development activity, not a runtime dependency.
 
 ## Build and run
 

@@ -50,6 +50,8 @@ public struct ActivationSettingsView: View {
           }
           Text("Off until you enable it each launch. Microphone access is needed for claps. Saying ‘Argus’ also needs speech permission and supported on-device recognition. If it is unavailable, you can choose clap-only. ARGUS never switches modes silently or uses server recognition.")
             .font(.callout).foregroundStyle(.secondary)
+          Text("Name activation currently uses US English on-device speech resources.")
+            .font(.caption).foregroundStyle(.secondary)
           DisclosureGroup("Privacy and background listening") {
             VStack(alignment: .leading, spacing: 8) {
               Text("Audio is processed on this Mac. No audio files or transcripts are saved or sent. Activation only shows a brief glow. It does not execute commands or change reminders.")
