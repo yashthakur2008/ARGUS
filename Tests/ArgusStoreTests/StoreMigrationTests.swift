@@ -135,7 +135,14 @@ func recoveryConcurrentFreshDatabaseOpens(_ iteration: Int) async throws {
   defer { sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) }
   try await withThrowingTaskGroup(of: Void.self) { group in
     group.addTask {
-      let store = try ReminderStore(databaseURL: url)
+      // SQLite's bounded startup wait blocks a thread. Do not occupy the
+      // cooperative executor that must resume the writer's timed rollback.
+      let store: ReminderStore = try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global().async {
+          do { continuation.resume(returning: try ReminderStore(databaseURL: url)) }
+          catch { continuation.resume(throwing: error) }
+        }
+      }
       #expect(try store.list() == [reminder])
       #expect(try store.generation() == 17)
     }
