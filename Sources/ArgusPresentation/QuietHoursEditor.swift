@@ -5,6 +5,7 @@ struct QuietHoursEditor: View {
   var model: AppModel
   @State var draft: NotificationPolicyDraft
   @State private var error: String?
+  @State private var isReloading = false
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -24,19 +25,26 @@ struct QuietHoursEditor: View {
         Toggle("Bypass ARGUS quiet hours", isOn: $draft.bypass)
         Text("This explicit override affects ARGUS only. It does not bypass macOS Focus, permission denial or system notification settings.")
           .font(.caption).foregroundStyle(.secondary)
-      }.formStyle(.grouped)
+      }.formStyle(.grouped).disabled(isReloading)
       if let error { Text(error).font(.callout).foregroundStyle(.red) }
       HStack {
         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
         Button("Reload current settings") {
+          guard !isReloading else { return }
+          isReloading = true
           Task {
-            await model.refresh()
-            if let policy = model.recovery.policy {
+            defer { isReloading = false }
+            switch await model.reloadNotificationPolicy() {
+            case .loaded(let policy):
               draft = NotificationPolicyDraft(policy: policy, timeZone: .current)
               error = nil
+            case .failed:
+              error = "Could not reload current settings. Your changes were kept. Try again."
+            case .superseded:
+              error = "Another update interrupted this reload. Your changes were kept. Try again."
             }
           }
-        }.disabled(model.isWorking)
+        }.disabled(model.isWorking || isReloading)
         Spacer()
         Button("Save") {
           Task {
@@ -45,7 +53,7 @@ struct QuietHoursEditor: View {
               else { error = model.recovery.issue }
             } catch { self.error = "Check the quiet-hours values: \(error)" }
           }
-        }.keyboardShortcut(.defaultAction).disabled(model.isWorking)
+        }.keyboardShortcut(.defaultAction).disabled(model.isWorking || isReloading)
       }
     }.padding(24).frame(width: 560)
   }

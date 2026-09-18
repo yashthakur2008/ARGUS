@@ -60,6 +60,11 @@ public final class AppModel {
     readFailed ? "Notices unavailable. Previously loaded history may be out of date. Retry loading notices to check current data." : nil
   }
 
+  /// Reload consumers must distinguish retained cache from this request's accepted policy.
+  func reloadNotificationPolicy() async -> RefreshPublicationOutcome {
+    await refreshOutcome()
+  }
+
   public func refresh() async {
     _ = await refreshOutcome()
   }
