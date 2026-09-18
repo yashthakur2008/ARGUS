@@ -30,14 +30,14 @@ public struct VoiceSettingsView: View {
           Button("Test voice") { voice.previewSpeech() }
             .disabled(!voice.spokenResponses)
             .accessibilityIdentifier("voice.preview")
-            .accessibilityHint("Speaks a short sample using an installed voice on this Mac.")
+            .accessibilityHint("Sends a fixed sample to ElevenLabs only with text-transmission consent and a saved API key.")
           Button("Stop listening", role: .destructive) { voice.stopListening() }
             .accessibilityIdentifier("voice.stop")
             .accessibilityHint("Stops listening and speech, and turns off Always listen.")
         }
         Text("Always listen remembers your opt-in. Sleep and locking pause listening. It resumes only when your Mac is available and microphone and speech permissions are already allowed. After a cold launch, ARGUS waits for an observed unlock or an explicit Start listening action. It does not infer the initial lock state. Stop listening turns off the remembered opt-in.")
           .font(.caption).foregroundStyle(.secondary)
-        Text("Spoken responses use installed macOS voices on this Mac. Audio is not sent to a speech provider. You can keep listening on with spoken responses off.")
+        Text("Spoken responses use only your selected ElevenLabs voice. With separate text-transmission consent, fixed response text is sent to ElevenLabs. Microphone audio, transcripts and reminders are not sent by this voice adapter. No system voice is used if ElevenLabs is unavailable. You can keep listening on with spoken responses off.")
           .font(.caption).foregroundStyle(.secondary)
       }
       Section("Launch at login") {

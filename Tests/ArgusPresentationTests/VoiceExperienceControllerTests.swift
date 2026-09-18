@@ -56,7 +56,7 @@ import ArgusPlatform
     h.voice.suspend(reason: .startupUnverified)
     h.voice.setSpokenResponses(true)
     h.voice.previewSpeech()
-    #expect(h.voice.statusText == "Speaking locally")
+    #expect(h.voice.statusText == "Speaking with ElevenLabs")
   }
 
   @Test func explicitModePreferenceDoesNotSilentlyChangeCurrentModeOnReopen() async {

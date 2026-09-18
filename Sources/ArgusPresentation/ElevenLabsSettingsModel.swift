@@ -12,6 +12,7 @@ public enum ElevenLabsCredentialStatus: Equatable, Sendable {
   public private(set) var errorMessage: String?
   public private(set) var transmissionConsent: Bool
   public let voiceID = ElevenLabsSpeechOutput.voiceID
+  @ObservationIgnored private var cancelSpeech: (@MainActor () -> Void)?
   @ObservationIgnored private let credentials: any ElevenLabsCredentialManaging
   @ObservationIgnored private let defaults: UserDefaults
   private static let consentKey = "voice.elevenLabsTransmissionConsent"
@@ -32,6 +33,15 @@ public enum ElevenLabsCredentialStatus: Equatable, Sendable {
     }
   }
 
+  /// Shared by production composition and fake-boundary integration tests.
+  /// Weak controller references avoid a settings/speech/controller ownership cycle.
+  public func connectSpeech(_ speech: ElevenLabsSpeechOutput, controller: VoiceExperienceController) {
+    cancelSpeech = { [weak controller] in controller?.speechAuthorizationChanged() }
+    speech.onFailure = { [weak controller] id, failure in
+      controller?.reportSpeechFailure(id, failure: failure)
+    }
+  }
+
   /// Explicit settings refresh, never an interactive Keychain prompt.
   public func refresh() {
     do {
@@ -42,14 +52,17 @@ public enum ElevenLabsCredentialStatus: Equatable, Sendable {
 
   /// The view owns the transient secure input and must clear it after every attempt.
   public func save(_ key: String) {
+    cancelSpeech?()
     do { try credentials.save(key); refresh() } catch { show(error) }
   }
   public func remove() {
+    cancelSpeech?()
     do { try credentials.remove(); status = .notConfigured; errorMessage = nil }
     catch { show(error) }
   }
   public func setTransmissionConsent(_ allowed: Bool) {
     transmissionConsent = allowed
+    if !allowed { cancelSpeech?() }
     defaults.set(allowed, forKey: Self.consentKey)
   }
 

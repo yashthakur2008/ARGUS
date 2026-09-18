@@ -14,6 +14,7 @@ struct ArgusApplication: App {
   private let activation: ActivationController
   private let glow: ScreenEdgeGlowController
   private let voice: VoiceExperienceController
+  private let elevenLabs: ElevenLabsSettingsModel
   private let login: LoginItemController
 
   init() {
@@ -32,8 +33,14 @@ struct ArgusApplication: App {
       if let trigger { feedback.voice?.handleActivation(trigger) }
     }
     self.activation = activation
-    let voice = VoiceExperienceController(activation: activation, speech: NativeSpeechOutput(),
+    let credentials = ElevenLabsCredentialManager()
+    let elevenLabs = ElevenLabsSettingsModel(credentials: credentials, defaults: preferences)
+    let speech = ElevenLabsSpeechOutput(credentials: credentials,
+      disclosureAccepted: { elevenLabs.transmissionConsent })
+    let voice = VoiceExperienceController(activation: activation, speech: speech,
       defaults: preferences, permissions: NativeActivationPermissionChecker())
+    elevenLabs.connectSpeech(speech, controller: voice)
+    self.elevenLabs = elevenLabs
     if let preferredMode = voice.preferredMode { activation.mode = preferredMode }
     self.voice = voice
     self.login = LoginItemController(service: NativeLoginItemService())
@@ -68,7 +75,8 @@ struct ArgusApplication: App {
     WindowGroup("ARGUS", id: "argus-main") {
       Group {
         if let model {
-          TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login)
+          TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
+            elevenLabs: elevenLabs)
             .task {
               if lifecycle.connect(model, voice: voice, glow: glow) {
                 await voice.restoreIfEnabled()
@@ -85,7 +93,8 @@ struct ArgusApplication: App {
     }.defaultSize(width: 1040, height: 740)
     Settings {
       if let model {
-        SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login)
+        SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
+          elevenLabs: elevenLabs)
           .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
       }
     }

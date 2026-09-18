@@ -13,7 +13,8 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
   public private(set) var spokenResponses: Bool
   public private(set) var isSpeaking = false
   public var statusText: String {
-    if isSpeaking { return "Speaking locally" }
+    if isSpeaking { return "Speaking with ElevenLabs" }
+    if let speechFailure { return speechFailure.presentationMessage }
     if suspensions.contains(.startupUnverified) {
       return alwaysListen ? "Waiting for unlock or explicit Start listening" : activation.statusText
     }
@@ -36,6 +37,7 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
   private var pausedMode: ActivationMode = .clap
   private var cooldown: Task<Void, Never>?
   private var message: String?
+  private var speechFailure: ElevenLabsSpeechFailure?
 
   public init(activation: ActivationController, speech: any SpeechOutput,
     defaults: UserDefaults = .standard,
@@ -115,6 +117,20 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
     message = nil
   }
 
+  /// Credential changes/revocation cancel synchronously without restoring paused capture.
+  /// Remembered listening intent is retained, but late speech callbacks cannot restart it.
+  public func speechAuthorizationChanged() {
+    invalidateSpeech()
+    // Also invalidate a capture restore that already passed the cooldown and is awaiting start.
+    activation.stop()
+    message = "ElevenLabs voice settings changed. Start listening to continue."
+  }
+
+  public func reportSpeechFailure(_ id: UUID, failure: ElevenLabsSpeechFailure) {
+    guard requestID == id else { return }
+    speechFailure = failure
+  }
+
   public func suspend(reason: VoiceSuspensionReason) {
     suspensions.insert(reason)
     invalidateSpeech()
@@ -145,7 +161,7 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
     speak("I'm here.")
   }
 
-  /// A fixed local sample only. Preview cannot authorize capture or remove a startup barrier.
+  /// A fixed sample sent only with provider consent. Preview cannot authorize capture.
   public func previewSpeech() {
     guard spokenResponses, suspensions.subtracting([.startupUnverified]).isEmpty else { return }
     speak("I'm Argus. I'm here when you need me.")
@@ -163,6 +179,7 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
       }
     }
     message = nil
+    speechFailure = nil
     if automatic { await activation.enableIfAuthorized() }
     else { await activation.enable() }
   }
@@ -191,7 +208,8 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
     isSpeaking = false
     guard result == .finished else {
       resumeAfterSpeech = false
-      message = result == .failed ? "Local speech unavailable. Enable listening to try again." : nil
+      message = result == .failed
+        ? (message ?? "ElevenLabs speech unavailable. Start listening to try again.") : nil
       return
     }
     let shouldResume = resumeAfterSpeech
@@ -216,6 +234,7 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
     requestID = nil
     resumeAfterSpeech = false
     isSpeaking = false
+    speechFailure = nil
     speech.stop()
   }
 }

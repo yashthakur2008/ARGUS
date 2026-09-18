@@ -7,6 +7,7 @@ public struct TodayView: View {
   var appearance: AppearanceSettings?
   var voice: VoiceExperienceController?
   var login: LoginItemController?
+  var elevenLabs: ElevenLabsSettingsModel?
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
@@ -14,12 +15,14 @@ public struct TodayView: View {
   @State private var expandedApproaching = false
 
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
-    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil) {
+    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
+    elevenLabs: ElevenLabsSettingsModel? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
     self.login = login
+    self.elevenLabs = elevenLabs
   }
   public var body: some View {
     NavigationSplitView {
@@ -58,7 +61,10 @@ public struct TodayView: View {
         }.padding(18)
       }.navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
     } detail: {
-      if destination == .settings { SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login) }
+      if destination == .settings {
+        SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
+          elevenLabs: elevenLabs)
+      }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
     }

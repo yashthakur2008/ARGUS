@@ -8,18 +8,22 @@ public struct SettingsView: View {
   var appearance: AppearanceSettings?
   var voice: VoiceExperienceController?
   var login: LoginItemController?
+  var elevenLabs: ElevenLabsSettingsModel?
   @State private var policyEditor: PolicyEditorSession?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
-    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil) {
+    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
+    elevenLabs: ElevenLabsSettingsModel? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
     self.login = login
+    self.elevenLabs = elevenLabs
   }
   public var body: some View {
     Form {
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
+      if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
       Section("Notifications") {
         Text(model.status)
