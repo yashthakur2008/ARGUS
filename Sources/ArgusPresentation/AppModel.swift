@@ -85,7 +85,7 @@ public final class AppModel {
       case let .create(title, dueAt, zone, recurrence):
         let item = try Reminder(title: title, dueAt: dueAt, timeZoneID: zone,
           createdAt: now, updatedAt: now, recurrence: recurrence)
-        try store.save(item, expectedRevision: nil)
+        try saveValidated(item, expectedRevision: nil, now: now)
       case .list: break
       case .help: message = Self.examples
       case let .delete(id): requestDeletion(try find(id))
@@ -143,8 +143,9 @@ public final class AppModel {
     isWorking = true
     defer { isWorking = false }
     do {
-      let reminder = try draft.reminder(now: clock())
-      try store.save(reminder, expectedRevision: draft.original?.revision)
+      let now = clock()
+      let reminder = try draft.reminder(now: now)
+      try saveValidated(reminder, expectedRevision: draft.original?.revision, now: now)
       message = nil
       await refresh()
       return true
@@ -181,7 +182,7 @@ public final class AppModel {
       updated.snoozedUntil = until
       updated.snoozedOccurrenceAt = occurrence
       updated.updatedAt = now
-      try store.save(updated, expectedRevision: reminder.revision)
+      try saveValidated(updated, expectedRevision: reminder.revision, now: now)
       message = nil
     } catch {
       message = "Could not snooze. Please review the reminder. \(error)"
@@ -240,7 +241,17 @@ public final class AppModel {
     let revision = item.revision
     try change(&item)
     item.updatedAt = now
-    try store.save(item, expectedRevision: revision)
+    try saveValidated(item, expectedRevision: revision, now: now)
+  }
+
+  /// Reject active out-of-range alert arithmetic before it can poison recovery.
+  /// A point window preserves dormant snoozed/completed candidates and does not
+  /// claim to validate future delivery or quiet-hours policy. Store decoding stays
+  /// permissive so existing records can still be opened and explicitly repaired.
+  private func saveValidated(_ reminder: Reminder, expectedRevision: Int64?, now: Date) throws {
+    _ = try ScheduleCalculator.plannedNotifications(for: reminder,
+      now: now, horizon: now, includingStart: true)
+    try store.save(reminder, expectedRevision: expectedRevision)
   }
 }
 
