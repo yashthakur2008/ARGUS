@@ -43,31 +43,48 @@ case "$1" in
   -L)
     [[ "${FAIL_AT:-}" != dependencies ]] || exit 42
     printf 'synthetic executable:\n'
-    if [[ "${FAIL_AT:-}" == private_dependency ]]; then
-      printf '\t/Users/synthetic/libPrivate.dylib (compatibility version 1.0.0)\n'
-    else
-      printf '\t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n'
-    fi ;;
+    case "${FAIL_AT:-}" in
+      private_dependency) dependency=/Users/synthetic/libPrivate.dylib ;;
+      homebrew_dependency) dependency=/opt/homebrew/lib/libPrivate.dylib ;;
+      local_dependency) dependency=/usr/local/lib/libPrivate.dylib ;;
+      toolchain_dependency) dependency=/Applications/Xcode.app/Contents/Developer/libPrivate.dylib ;;
+      volume_dependency) dependency=/Volumes/build/libPrivate.dylib ;;
+      traversal_dependency) dependency=/usr/lib/../../opt/homebrew/libPrivate.dylib ;;
+      relative_paths) dependency=@rpath/libBundled.dylib ;;
+      system_framework) dependency=/System/Library/Frameworks/Foundation.framework/Foundation ;;
+      *) dependency=/usr/lib/libSystem.B.dylib ;;
+    esac
+    printf '\t%s (compatibility version 1.0.0)\n' "$dependency" ;;
   -l)
     [[ "${FAIL_AT:-}" != load_commands ]] || { echo 'synthetic inspection failure' >&2; exit 42; }
     printf 'Load command 0\n          cmd LC_RPATH\n      cmdsize 40\n'
-    if [[ "${FAIL_AT:-}" == private_rpath ]]; then
-      printf '         path /Users/synthetic/toolchain/lib (offset 12)\n'
-    else
-      printf '         path /usr/lib/swift (offset 12)\n'
-    fi ;;
+    case "${FAIL_AT:-}" in
+      private_rpath) rpath=/Users/synthetic/toolchain/lib ;;
+      homebrew_rpath) rpath=/opt/homebrew/lib ;;
+      local_rpath) rpath=/usr/local/lib ;;
+      toolchain_rpath) rpath=/Library/Developer/Toolchains/synthetic/usr/lib ;;
+      spaced_traversal_rpath) rpath="/usr/lib/test directory/../../../opt/homebrew" ;;
+      traversal_rpath) rpath=/System/Library/../../Library/Developer/Toolchains/private ;;
+      system_root_rpath) rpath=/usr/lib ;;
+      system_library_root_rpath) rpath=/System/Library ;;
+      relative_paths) rpath=@executable_path/../Frameworks ;;
+      *) rpath=/usr/lib/swift ;;
+    esac
+    printf '         path %s (offset 12)\n' "$rpath" ;;
   *) exit 43 ;;
 esac
 OTOOL
 chmod +x "$WORK/bin/"*
 failures=0
 cases=0
-for scenario in success swift plist disclosure signature dependencies load_commands private_dependency private_rpath; do
+for scenario in success relative_paths system_framework system_root_rpath system_library_root_rpath swift plist disclosure signature dependencies load_commands \
+  private_dependency homebrew_dependency local_dependency toolchain_dependency volume_dependency traversal_dependency \
+  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath; do
   cases=$((cases + 1))
   status=0
   PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" \
     /bin/bash "$WORK/scripts/verify.sh" > "$WORK/$scenario.log" 2>&1 || status=$?
-  if [[ "$scenario" == success ]]; then
+  if [[ "$scenario" == success || "$scenario" == relative_paths || "$scenario" == system_framework || "$scenario" == system_root_rpath || "$scenario" == system_library_root_rpath ]]; then
     if [[ "$status" == 0 ]] && grep -q 'Local checks passed' "$WORK/$scenario.log"; then
       echo "PASS $scenario"
     else
