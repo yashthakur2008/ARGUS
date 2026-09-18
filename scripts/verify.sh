@@ -6,6 +6,7 @@ cd "$ROOT"
 SWIFT="${ARGUS_SWIFT:-swift}"
 "$SWIFT" --version
 bash scripts/test-build-dev-app.sh
+bash scripts/test-verify.sh
 "$SWIFT" test --disable-xctest --enable-swift-testing
 ARGUS_SWIFT="$SWIFT" bash scripts/build-dev-app.sh
 APP="$ROOT/build/ARGUS.app"
@@ -23,7 +24,11 @@ if printf '%s\n' "$DEPENDENCIES" | tail -n +2 | grep -E '^[[:space:]]+(/Users/|/
   printf '%s\n' 'ERROR: development-only absolute runtime dependency found.' >&2
   exit 1
 fi
-if otool -l "$APP/Contents/MacOS/ARGUS" | awk '/cmd LC_RPATH/{r=1;next} r && /path /{print $2;r=0}' | grep -E '^(/Users/|/private/|/var/|/tmp/)' >/dev/null; then
+# Capture outside the conditional so inspection failure is not mistaken for
+# "no forbidden paths". Bash deliberately suppresses errexit in if conditions.
+LOAD_COMMANDS="$(otool -l "$APP/Contents/MacOS/ARGUS")"
+RPATHS="$(printf '%s\n' "$LOAD_COMMANDS" | awk '/cmd LC_RPATH/{r=1;next} r && /path /{print $2;r=0}')"
+if printf '%s\n' "$RPATHS" | grep -E '^(/Users/|/private/|/var/|/tmp/)' >/dev/null; then
   printf '%s\n' 'ERROR: development-only absolute runtime search path found.' >&2
   exit 1
 fi
