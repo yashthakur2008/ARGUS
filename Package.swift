@@ -14,6 +14,7 @@ let package = Package(
     .target(name: "ArgusPlatform", dependencies: ["ArgusCore", "ArgusStore"]),
     .target(name: "ArgusPresentation", dependencies: ["ArgusCore", "ArgusStore", "ArgusPlatform"]),
     .executableTarget(name: "ArgusApp", dependencies: ["ArgusPresentation", "ArgusStore", "ArgusPlatform"]),
+    .testTarget(name: "ArgusAppTests", dependencies: ["ArgusApp", "ArgusPresentation", "ArgusPlatform", "ArgusCore"]),
     .testTarget(name: "ArgusCoreTests", dependencies: ["ArgusCore"]),
     .testTarget(name: "ArgusStoreTests", dependencies: ["ArgusStore", "ArgusCore", "CSQLite"]),
     .testTarget(name: "ArgusPlatformTests", dependencies: ["ArgusPlatform", "ArgusStore", "ArgusCore"]),

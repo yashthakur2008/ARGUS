@@ -69,6 +69,9 @@ struct ArgusApplication: App {
       model = nil
       startupError = "ARGUS could not start. Use the development .app bundle, and verify its local data directory is accessible. Existing data was not replaced. \(error)"
     }
+    // Install the startup barrier and observers before any Scene exposes capture controls,
+    // including a Settings-first launch or a failed reminder-store initialization.
+    lifecycle.connectVoice(voice: voice, startupReady: model != nil, hideGlow: { [weak glow] in glow?.hide() })
   }
 
   var body: some Scene {
@@ -78,7 +81,7 @@ struct ArgusApplication: App {
           TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
             elevenLabs: elevenLabs)
             .task {
-              if lifecycle.connect(model, voice: voice, glow: glow) {
+              if lifecycle.connect(model) {
                 await voice.restoreIfEnabled()
               }
               await model.refresh()
@@ -112,14 +115,43 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   private var wakeObserver: NSObjectProtocol?
   private var refreshTimer: Timer?
   private var voice: VoiceExperienceController?
-  private var glow: ScreenEdgeGlowController?
+  private var hideGlow: (@MainActor @Sendable () -> Void)?
   private var voiceLifecycle: VoiceLifecycleBridge?
+  private var voiceConnected = false
+  private var stopped = false
 
-  func connect(_ model: AppModel, voice: VoiceExperienceController, glow: ScreenEdgeGlowController) -> Bool {
-    guard self.model == nil else { return false }
-    self.model = model
+  /// Synchronous app-start attachment, independent of windows and reminder storage.
+  @discardableResult
+  func connectVoice(voice: VoiceExperienceController, startupReady: Bool = true,
+    hideGlow: @escaping @MainActor @Sendable () -> Void,
+    workspaceCenter: NotificationCenter? = nil,
+    lockCenter: NotificationCenter? = nil) -> Bool {
+    guard !voiceConnected, !stopped else { return false }
+    voiceConnected = true
     self.voice = voice
-    self.glow = glow
+    self.hideGlow = hideGlow
+    guard startupReady else {
+      // Storage failure must not let remembered intent arm capture on a later unlock.
+      // Seal the lifecycle before creating native notification centers or a monitor.
+      stopActivation()
+      return false
+    }
+    voiceLifecycle = VoiceLifecycleBridge(
+      workspaceCenter: workspaceCenter ?? NSWorkspace.shared.notificationCenter,
+      lockCenter: lockCenter ?? DistributedNotificationCenter.default(),
+      onSuspend: { [weak self] reason in
+        self?.voice?.suspend(reason: reason)
+        self?.hideGlow?()
+      }, onResume: { [weak self] reason in
+        await self?.voice?.resume(reason: reason)
+      })
+    return true
+  }
+
+  /// Reminder refresh can remain lazy; it never owns or resets voice monitoring.
+  func connect(_ model: AppModel) -> Bool {
+    guard self.model == nil, !stopped else { return false }
+    self.model = model
     let center = NotificationCenter.default
     for name in [NSApplication.didBecomeActiveNotification,
       NSNotification.Name.NSSystemClockDidChange, NSNotification.Name.NSSystemTimeZoneDidChange] {
@@ -131,12 +163,6 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
       forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
         Task { @MainActor in await self?.model?.refresh() }
       }
-    voiceLifecycle = VoiceLifecycleBridge(onSuspend: { [weak self] reason in
-      self?.voice?.suspend(reason: reason)
-      self?.glow?.hide()
-    }, onResume: { [weak self] reason in
-      await self?.voice?.resume(reason: reason)
-    })
     refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       Task { @MainActor in
         await self?.model?.refresh()
@@ -150,9 +176,18 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) { stopActivation() }
 
   private func stopActivation() {
+    guard !stopped else { return }
+    stopped = true
     voiceLifecycle?.stop()
+    voiceLifecycle = nil
     voice?.suspend(reason: .sessionInactive)
-    glow?.hide()
+    hideGlow?()
+    refreshTimer?.invalidate()
+    refreshTimer = nil
+    for observer in observers { NotificationCenter.default.removeObserver(observer) }
+    observers.removeAll()
+    if let wakeObserver { NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver) }
+    wakeObserver = nil
   }
 }
 
