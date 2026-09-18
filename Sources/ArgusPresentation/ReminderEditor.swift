@@ -57,6 +57,7 @@ struct SnoozeEditor: View {
   var model: AppModel
   let reminder: Reminder
   @State var until: Date
+  @State private var validationError: String?
   @Environment(\.dismiss) private var dismiss
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -66,10 +67,16 @@ struct SnoozeEditor: View {
         .environment(\.timeZone, TimeZone(identifier: reminder.timeZoneID) ?? .current)
       Text(reminder.timeZoneID).font(.caption).foregroundStyle(.secondary)
       Text("Your original deadline stays unchanged.").font(.caption).foregroundStyle(.secondary)
+      if let validationError { Text(validationError).foregroundStyle(.red).font(.callout) }
       HStack {
         Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
         Spacer()
-        Button("Snooze") { Task { await model.snooze(reminder, until: until); dismiss() } }
+        Button("Snooze") {
+          Task {
+            if await model.snooze(reminder, until: until) { dismiss() }
+            else { validationError = model.message ?? "Could not snooze. Please review the reminder and try again." }
+          }
+        }
           .keyboardShortcut(.defaultAction).disabled(until <= model.referenceDate || model.isWorking)
       }
     }.padding(24).frame(width: 430)

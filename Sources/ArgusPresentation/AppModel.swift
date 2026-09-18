@@ -161,17 +161,17 @@ public final class AppModel {
     return result.error
   }
 
-  public func snooze(_ reminder: Reminder, for duration: TimeInterval) async {
+  @discardableResult public func snooze(_ reminder: Reminder, for duration: TimeInterval) async -> Bool {
     let now = clock()
-    await snooze(reminder, until: now.addingTimeInterval(duration), now: now)
+    return await snooze(reminder, until: now.addingTimeInterval(duration), now: now)
   }
 
-  public func snooze(_ reminder: Reminder, until: Date) async {
+  @discardableResult public func snooze(_ reminder: Reminder, until: Date) async -> Bool {
     await snooze(reminder, until: until, now: clock())
   }
 
-  private func snooze(_ reminder: Reminder, until: Date, now: Date) async {
-    guard !isWorking else { return }
+  private func snooze(_ reminder: Reminder, until: Date, now: Date) async -> Bool {
+    guard !isWorking else { return false }
     isWorking = true
     defer { isWorking = false }
     do {
@@ -183,8 +183,13 @@ public final class AppModel {
       updated.updatedAt = now
       try store.save(updated, expectedRevision: reminder.revision)
       message = nil
-    } catch { message = "Could not snooze. Please review the reminder. \(error)" }
+    } catch {
+      message = "Could not snooze. Please review the reminder. \(error)"
+      await refresh()
+      return false
+    }
     await refresh()
+    return true
   }
 
   public func dismissNotice(_ notice: ReminderNotice) async {
