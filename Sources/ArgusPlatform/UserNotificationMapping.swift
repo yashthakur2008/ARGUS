@@ -8,6 +8,10 @@ public enum NotificationMappingError: Error { case invalidIntent, malformedPendi
 /// Exact source timestamps stay in metadata for reconciliation.
 /// Pure conversion only. This type never obtains the system notification center.
 public enum UserNotificationMapping {
+  public static func foregroundOptions(for request: UNNotificationRequest) -> UNNotificationPresentationOptions {
+    intent(from: request) == nil ? [] : [.banner, .sound]
+  }
+
   public static func request(for intent: NotificationIntent, now: Date) throws -> UNNotificationRequest {
     guard valid(intent), intent.fireAt > now else { throw NotificationMappingError.invalidIntent }
     let content = UNMutableNotificationContent()

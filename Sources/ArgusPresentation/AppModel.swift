@@ -18,6 +18,7 @@ public final class AppModel {
   private let clock: @Sendable () -> Date
   private let reconciler: NotificationReconciler
   private let requestPermission: (@Sendable () async throws -> Void)?
+  private var readFailed = false
   private var refreshSequence = 0
   private var deletionRequestedAt: Date?
   public static let examples = "Try “remind me to Stretch in 20 minutes” or “every weekday at 09:00, Plan the day”."
@@ -33,6 +34,7 @@ public final class AppModel {
   }
 
   public var status: String {
+    if readFailed { return "Local storage unavailable · schedule not verified" }
     if isReconciling { return "Saved locally · checking notification schedule" }
     guard let result else { return "Saved locally · schedule not checked" }
     if result.authorization == .denied { return "Saved locally · notification permission denied" }
@@ -45,8 +47,17 @@ public final class AppModel {
     refreshSequence += 1
     let sequence = refreshSequence
     referenceDate = clock()
-    do { reminders = try store.list() }
-    catch { message = "Could not read reminders: \(error)"; return }
+    do {
+      reminders = try store.list()
+      if readFailed { message = nil }
+      readFailed = false
+    } catch {
+      readFailed = true
+      isReconciling = false
+      result = nil
+      message = "Could not read reminders: \(error)"
+      return
+    }
     isReconciling = true
     let checked = await reconciler.reconcile(now: referenceDate, horizon: referenceDate.addingTimeInterval(7 * 86400))
     guard sequence == refreshSequence else { return }

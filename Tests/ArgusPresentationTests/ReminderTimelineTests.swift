@@ -37,3 +37,16 @@ extension ReminderTimelineTests {
     #expect(try ReminderTimeline.nowItems([reminder], now: later).count == 1)
   }
 }
+extension ReminderTimelineTests {
+  @Test func longSnoozeDoesNotHideOtherRecurringOccurrences() throws {
+    let formatter = ISO8601DateFormatter()
+    let monday = formatter.date(from: "2026-09-21T08:30:00Z")!
+    let tuesday = formatter.date(from: "2026-09-22T08:00:00Z")!
+    let friday = formatter.date(from: "2026-09-25T09:00:00Z")!
+    let item = try Reminder(title: "Long snooze", dueAt: monday, timeZoneID: "UTC", createdAt: monday, updatedAt: monday, recurrence: .weekdays(hour: 8, minute: 30), snoozedUntil: friday, snoozedOccurrenceAt: monday)
+    let intents = try ScheduleCalculator.notifications(for: item, now: tuesday, horizon: tuesday.addingTimeInterval(3600))
+    #expect(try ReminderTimeline.displayDate(for: item, now: tuesday) == intents.first?.fireAt)
+    #expect(try ReminderTimeline.nowItems([item], now: tuesday).count == 1)
+    #expect(try ReminderTimeline.approachingItems([item], now: tuesday).isEmpty)
+  }
+}

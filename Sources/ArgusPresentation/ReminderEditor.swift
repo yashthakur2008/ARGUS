@@ -22,8 +22,15 @@ struct ReminderEditor: View {
         Text("Changing the time zone keeps the same instant. Adjust the date and time afterward to change the deadline.")
           .font(.caption).foregroundStyle(.secondary)
         Toggle("Repeat every weekday", isOn: $draft.weekdays)
-        Text("Weekday reminders use the selected local time, Monday through Friday.")
-          .font(.caption).foregroundStyle(.secondary)
+        if draft.weekdays, let original = draft.original,
+          original.dueAt == draft.dueAt, original.timeZoneID == draft.timeZoneID,
+          case let .weekdays(hour, minute) = original.recurrence {
+          Text("Existing weekday time: \(String(format: "%02d:%02d", hour, minute)). Changing the date/time or zone updates it. A DST gap may shift only the first deadline.")
+            .font(.caption).foregroundStyle(.secondary)
+        } else {
+          Text("Weekday reminders use the selected local time, Monday through Friday.")
+            .font(.caption).foregroundStyle(.secondary)
+        }
         TextField("Alert minutes before", text: $draft.alertMinutes)
           .accessibilityLabel("Alert offsets in minutes, comma separated")
         Text("Use 0 for at the deadline, or 0, 10, 30. Up to 8 alerts. Leave blank for no notifications.")
