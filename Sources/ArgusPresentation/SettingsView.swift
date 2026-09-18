@@ -4,10 +4,17 @@ import ArgusStore
 
 public struct SettingsView: View {
   var model: AppModel
+  var activation: ActivationController?
+  var appearance: AppearanceSettings?
   @State private var policyEditor: PolicyEditorSession?
-  public init(model: AppModel) { self.model = model }
+  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil) {
+    self.model = model
+    self.activation = activation
+    self.appearance = appearance
+  }
   public var body: some View {
     Form {
+      ActivationSettingsView(activation: activation, appearance: appearance)
       Section("Notifications") {
         Text(model.status)
         Text("Scheduled means macOS has a pending request, not that a banner was shown or seen. Focus, system settings, sleep and quitting ARGUS can affect timely reminders.")
@@ -48,6 +55,7 @@ public struct SettingsView: View {
           .foregroundStyle(.secondary)
       }
     }.formStyle(.grouped).padding(16).frame(minWidth: 500, minHeight: 400)
+      .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
       .sheet(item: $policyEditor) { session in QuietHoursEditor(model: model, draft: session.draft) }
   }
 }

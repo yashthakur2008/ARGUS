@@ -3,18 +3,25 @@ import ArgusCore
 
 public struct TodayView: View {
   var model: AppModel
+  var activation: ActivationController?
+  var appearance: AppearanceSettings?
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
   @State private var expandedNow = false
   @State private var expandedApproaching = false
 
-  public init(model: AppModel) { self.model = model }
+  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil) {
+    self.model = model
+    self.activation = activation
+    self.appearance = appearance
+  }
   public var body: some View {
     NavigationSplitView {
       VStack(alignment: .leading, spacing: 24) {
         HStack(spacing: 10) {
           Image(systemName: "circle.hexagongrid.fill").font(.title2)
+            .foregroundStyle(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
           Text("ARGUS").font(.headline).tracking(3)
         }.padding(.horizontal, 18).padding(.top, 26)
         List(selection: $destination) {
@@ -24,17 +31,34 @@ public struct TodayView: View {
           Label("Settings", systemImage: "slider.horizontal.3").tag(Destination.settings)
         }.listStyle(.sidebar)
         VStack(alignment: .leading, spacing: 6) {
+          if let activation {
+            Label(activation.isListening ? "Listening" : (activation.isEnabled ? "Awaiting permission" : "Microphone off"),
+              systemImage: activation.isListening ? "mic.fill" : "mic.slash")
+              .font(.caption.weight(.medium))
+              .foregroundStyle(activation.isListening ? (appearance?.color ?? .green) : .secondary)
+              .help(activation.statusText)
+              .accessibilityLabel(activation.statusText)
+              .accessibilityIdentifier("today.activation.status")
+            if activation.isEnabled {
+              Button("Stop listening") { activation.stop() }
+                .font(.caption).accessibilityIdentifier("today.activation.stop")
+            } else {
+              Button("Activation settings") { destination = .settings }
+                .font(.caption)
+            }
+            Divider().padding(.vertical, 6)
+          }
           Label("On this Mac", systemImage: "internaldrive").font(.caption)
           Text("A little less to hold in mind.").font(.caption2).foregroundStyle(.secondary)
         }.padding(18)
       }.navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
     } detail: {
-      if destination == .settings { SettingsView(model: model) }
+      if destination == .settings { SettingsView(model: model, activation: activation, appearance: appearance) }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
     }
     .frame(minWidth: 820, minHeight: 600)
-    .tint(.primary)
+    .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
     .sheet(item: $editor) { session in ReminderEditor(model: model, draft: session.draft) }
     .sheet(item: $snooze) { session in
       SnoozeEditor(model: model, reminder: session.reminder, until: session.until)
