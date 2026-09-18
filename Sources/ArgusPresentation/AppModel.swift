@@ -90,11 +90,7 @@ public final class AppModel {
       case .help: message = Self.examples
       case let .delete(id): requestDeletion(try find(id))
       case let .snooze(id, until):
-        try update(id, now: now) {
-          let occurrence = try $0.occurrenceToSnooze(at: now)
-          $0.snoozedUntil = until
-          $0.snoozedOccurrenceAt = occurrence
-        }
+        try saveSnooze(try find(id), until: until, now: now)
       case let .edit(id, title, dueAt):
         try update(id, now: now) {
           if let title { $0.title = title }
@@ -176,13 +172,7 @@ public final class AppModel {
     isWorking = true
     defer { isWorking = false }
     do {
-      guard until > now else { throw CoreError.invalidDate }
-      var updated = reminder
-      let occurrence = try reminder.occurrenceToSnooze(at: now)
-      updated.snoozedUntil = until
-      updated.snoozedOccurrenceAt = occurrence
-      updated.updatedAt = now
-      try saveValidated(updated, expectedRevision: reminder.revision, now: now)
+      try saveSnooze(reminder, until: until, now: now)
       message = nil
     } catch {
       message = "Could not snooze. Please review the reminder. \(error)"
@@ -248,10 +238,36 @@ public final class AppModel {
   /// A point window preserves dormant snoozed/completed candidates and does not
   /// claim to validate future delivery or quiet-hours policy. Store decoding stays
   /// permissive so existing records can still be opened and explicitly repaired.
-  private func saveValidated(_ reminder: Reminder, expectedRevision: Int64?, now: Date) throws {
+  private func saveValidated(_ reminder: Reminder, expectedRevision: Int64?, now: Date,
+    expectedPolicyRevision: Int64? = nil) throws {
     _ = try ScheduleCalculator.plannedNotifications(for: reminder,
       now: now, horizon: now, includingStart: true)
-    try store.save(reminder, expectedRevision: expectedRevision)
+    try store.save(reminder, expectedRevision: expectedRevision, expectedPolicyRevision: expectedPolicyRevision)
+  }
+
+  /// Keep the existing target while its policy-adjusted alert is pending. A concurrent
+  /// policy edit rejects the save rather than committing a target chosen from stale policy.
+  private func saveSnooze(_ reminder: Reminder, until: Date, now: Date) throws {
+    guard until > now else { throw CoreError.invalidDate }
+    let policy = try store.notificationPolicy()
+    var pendingTarget: Date?
+    if let snooze = reminder.snoozedUntil {
+      let delivery = policy.bypassQuietHours
+        ? snooze : policy.quietHours?.nextAllowedDate(for: snooze) ?? snooze
+      // Same supported Gregorian date range as Core validation, before comparing
+      // a policy-derived date. No invalid effective delivery is silently accepted.
+      let seconds = delivery.timeIntervalSince1970
+      guard seconds.isFinite, seconds >= -62_135_596_800, seconds < 253_402_300_800 else {
+        throw CoreError.invalidDate
+      }
+      if delivery > now { pendingTarget = reminder.snoozedOccurrenceAt ?? reminder.dueAt }
+    }
+    var updated = reminder
+    updated.snoozedOccurrenceAt = try pendingTarget ?? reminder.occurrenceToSnooze(at: now)
+    updated.snoozedUntil = until
+    updated.updatedAt = now
+    try saveValidated(updated, expectedRevision: reminder.revision, now: now,
+      expectedPolicyRevision: policy.revision)
   }
 }
 

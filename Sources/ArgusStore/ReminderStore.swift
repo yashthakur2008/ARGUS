@@ -12,9 +12,16 @@ public final class ReminderStore: @unchecked Sendable {
 
   public func list() throws -> [Reminder] { try lock.withLock { try database.readReminders() } }
 
-  public func save(_ reminder: Reminder, expectedRevision: Int64?) throws {
+  /// Policy-derived mutations may fence the policy snapshot as well as the reminder.
+  /// Both checks and the write occur in one immediate transaction.
+  public func save(_ reminder: Reminder, expectedRevision: Int64?, expectedPolicyRevision: Int64? = nil) throws {
     try lock.withLock {
-      try database.transaction { try saveLocked(reminder, expectedRevision: expectedRevision) }
+      try database.transaction {
+        if let expectedPolicyRevision {
+          guard try database.readPolicy().revision == expectedPolicyRevision else { throw StoreError.conflict }
+        }
+        try saveLocked(reminder, expectedRevision: expectedRevision)
+      }
     }
   }
 
