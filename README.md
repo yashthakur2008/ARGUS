@@ -88,6 +88,7 @@ These complete workflows are not implemented by the reminder prototype. Optional
 
 ## Design and release gates
 
+- [Commercial readiness checkpoint and remaining gates](docs/verification/2026-09-18-commercial-readiness.md)
 - [Consolidated design](docs/superpowers/specs/2026-09-17-argus-native-macos-design.md)
 - [Phased delivery and verification roadmap](docs/superpowers/plans/2026-09-17-argus-delivery-roadmap.md)
 - [Reminder implementation plan](docs/superpowers/plans/2026-09-17-reminders-slice.md)
