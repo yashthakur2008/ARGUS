@@ -1,0 +1,24 @@
+#!/bin/bash
+# Reproducible local checks. This does not prove OS delivery or App Store eligibility.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+SWIFT="${ARGUS_SWIFT:-swift}"
+"$SWIFT" --version
+"$SWIFT" test --disable-xctest --enable-swift-testing
+ARGUS_SWIFT="$SWIFT" bash scripts/build-dev-app.sh
+APP="$ROOT/build/ARGUS.app"
+plutil -lint "$APP/Contents/Info.plist"
+codesign --verify --deep --strict --verbose=2 "$APP"
+DEPENDENCIES="$(otool -L "$APP/Contents/MacOS/ARGUS")"
+printf '%s\n' "$DEPENDENCIES"
+# Runtime dependencies must not resolve from a developer's home or extracted toolchain.
+if printf '%s\n' "$DEPENDENCIES" | tail -n +2 | grep -E '^[[:space:]]+(/Users/|/private/|/var/|/tmp/)' >/dev/null; then
+  printf '%s\n' 'ERROR: development-only absolute runtime dependency found.' >&2
+  exit 1
+fi
+if otool -l "$APP/Contents/MacOS/ARGUS" | awk '/cmd LC_RPATH/{r=1;next} r && /path /{print $2;r=0}' | grep -E '^(/Users/|/private/|/var/|/tmp/)' >/dev/null; then
+  printf '%s\n' 'ERROR: development-only absolute runtime search path found.' >&2
+  exit 1
+fi
+printf '%s\n' 'Local checks passed. Ad-hoc development bundle only. Notification delivery, sandbox confinement, release signing, and App Store review require separate verification.'

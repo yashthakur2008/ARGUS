@@ -2,7 +2,7 @@
 
 Date: 2026-09-17 (America/Los_Angeles)
 Branch: feat/reminders-slice
-Status: core verified, persistence/native interface in progress. This is not full-slice or App Store acceptance.
+Status: native reminder prototype built and partially demonstrated. Review fixes and durable notice recovery remain in progress. This is not full-slice or App Store acceptance.
 
 ## Toolchain investigation and controlled repair
 
@@ -44,13 +44,56 @@ Coverage includes:
 
 The worker authored tests before initial implementation, but the broken compiler/SwiftPM prevented meaningful initial red execution. Therefore this work is **not claimed to have strict behavioral RED before every initial function**. After restoring a working isolated toolchain, actual test runs exposed invalid ISO-date normalization, invalid decoded records, duplicate offsets, quiet-hour restart loss, and unsupported date range. The worker observed failing regression assertions before fixing those defects, then reported green; the coordinator reran the final suite independently.
 
-A separate read-only core reviewer is checking specification compliance and code quality. Review approval is not yet recorded here.
+Independent read-only reviews reproduced two core defects, three store/reconciliation defects, and three presentation defects rather than merely accepting existing green tests. See the checkpoint below. Passing a suite does not establish absence of untested defects.
+
+## Integrated checkpoint at 02:50 UTC
+
+The coordinator independently ran `ARGUS_SWIFT=<verified executable> bash scripts/verify.sh` from the actual repository at 2026-09-18T02:50:36Z. Exit 0 after 12.3 seconds:
+
+- **94 Swift Testing tests passed** against production modules, real temporary SQLite databases, and controlled protocol fakes for the external notification boundary.
+- Release-mode ARGUS executable built, development `.app` bundled, both plist checks passed, ad-hoc signature passed `codesign --verify --deep --strict`.
+- `otool` dependency and LC_RPATH checks found no private build-machine runtime dependencies or search paths. The final bundle's remaining LC_RPATH was `@loader_path`. An injected absolute toolchain testing-library rpath had been removed by the bundler before signing.
+- Native artifact is arm64, macOS 14 deployment target, development bundle ID `org.argus.local.development`, no release team/sandbox proof. Successful execution on this host does not establish testing on macOS 14 or Intel.
+- `scripts/verify.sh` did not launch, install, request permission, notarize, or publish anything.
+
+This is a historical integration checkpoint, not a claim that subsequently added recovery stubs/tests are green. The recovery worker later observed 11 expected failing issues across four new test functions before implementing schema 2.
+
+### Review findings and their disposition
+
+| Finding | Evidence / disposition |
+|---|---|
+| Later-occurrence recurring snooze emitted both original and snoozed alerts | Reviewer reproduced against actual core. Regression fixed with persisted `snoozedOccurrenceAt`, commit `66bb561`. |
+| Restart between DST-fold instants selected the forbidden second occurrence | Reviewer reproduced Cairo case. Canonical per-day first occurrence and regression in `66bb561`. |
+| Supported `Asia/Kolkata` missing from Foundation's enumerated zone list | Actual Foundation probe and red regression. Structured supported IANA aliases accepted in `c9dbcdc`. |
+| Known stale completed OS add survived when subsequent enumeration failed | Reviewer reproduced with real reconciler/fake OS. Immediate owned-ID compensation and regression in `a844d27`. |
+| SQL LIKE underscore wildcard adopted foreign version-zero database | Real SQLite fixture. Literal prefix validation and rejection-byte-preservation regression in `a844d27`. |
+| Malformed version-one schema allowed duplicate IDs/multirow optimistic updates | Real SQLite fixture. Required identity/schema validation and regression in `a844d27`. |
+| Title-only editor save shifts recurring time after a DST gap | Reviewer reproduced parser-to-draft case. Assigned for regression/fix, not yet closed at this checkpoint. |
+| Long recurring snooze hides an earlier unsnoozed occurrence from Today | Reviewer compared actual scheduler and presentation API. Assigned for regression/fix. |
+| Newer refresh read failure strands the checking status | Reviewer reproduced overlapping refresh and corrupt real SQLite payload. Assigned for regression/fix. |
+
+Coordinator separately reran **38 core tests and core-target build** after the core review fixes at 02:44 UTC. Commit `b7fe553` subsequently added shared occurrence provenance needed by notice recovery, and its tests are included in the 94-test checkpoint.
+
+## Actual isolated native demonstration
+
+At approximately 02:47–02:55 UTC, the coordinator launched the development `.app` through Launch Services with an explicit temporary `ARGUS_DATA_DIR` under agent scratch. No normal Application Support database was populated. The initial executable SHA-256 was `04f380d3543ed0482e3015e155d17c6d7623423c8f8b786e75d4dce20f3088b3`.
+
+Observed through native Accessibility, an ARGUS-window-only screenshot, and read-only inspection of the same fixture SQLite database:
+
+1. Empty Today opened with no fabricated reminders and explicit notifications-not-enabled status. OS authorization remained `notDetermined`. No Enable notifications control was pressed.
+2. Actual keyboard submission of `Remind me to ARGUS synthetic smoke test in 20 minutes` persisted exactly one record. Database `dueAt - createdAt` was **1200.0 seconds**, revision 1. Background AX text-value assignment alone had not updated the SwiftUI binding, so that was not counted as successful command entry. The keyboard fallback checked ARGUS focus and restored prior focus.
+3. Closing the window left the process running. Explicit Quit then ended the observed PID. Reopening the app with the same fixture directory displayed the saved reminder. The scoped screenshot showed the native Today layout and the actual retained record, not a mockup.
+4. A background AX menu action snoozed the reminder. Revision became 2, while `dueAt - createdAt` remained **1200.0 seconds**. However, the ten-minute preset used a stale view reference time: `snoozedUntil - updatedAt` measured **577.25088596344 seconds**, not 600. This is a real native-test failure, assigned for a clock-advance regression and fresh-clock model fix before final acceptance.
+5. The native Delete sheet displayed the exact synthetic title, irreversible consequence, and five-minute expiry. Choosing Keep preserved one record at revision 2. Opening a fresh confirmation and choosing Delete removed that fixture record. Read-only `PRAGMA integrity_check` returned `ok`.
+6. The isolated demo app was explicitly quit afterward. No actual OS banner, permission change, personal reminder, login helper, or background service was created by this demonstration.
+
+Native create/restart/snooze/delete paths were exercised. Native editor text-entry, VoiceOver, real notification delivery, sleep/reboot, and the not-yet-built notice/settings follow-up were not demonstrated. A raw `notDetermined` enum warning visible in Today was also flagged for conversational, nonduplicative wording.
 
 ## Not yet established
 
-- Real SQLite persistence and crash/reopen behavior.
-- Native command-to-store/UI journeys, approval-gated deletion and notification reconciliation races.
-- Actual OS banner delivery, permission behavior, Focus, sleep/wake, explicit Quit, or machine restart.
+- Full process-crash injection and every failure/restart journey. Real SQLite reopen, transaction rollback/conflicts and async reconciliation races are covered, but not every OS crash window.
+- Complete native editor/notice/quiet-hours journeys and closure of the presentation findings above.
+- Actual OS banner delivery, permission/Focus behavior, sleep/wake, or machine restart. Window close and explicit Quit/relaunch were observed separately as described above.
 - Signed App Sandbox, XPC worker isolation, Keychain boundaries, app archive or App Store acceptance.
 - Prompt library, multi-hand runtime, optional voice, calendar adapter, or complete global stop behavior.
 

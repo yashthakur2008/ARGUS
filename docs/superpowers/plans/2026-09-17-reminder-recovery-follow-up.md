@@ -34,3 +34,19 @@ Before implementation, the storage implementer must propose exact public signatu
 8. Keep private reminder text out of generic OS notification previews and diagnostic logs. Document that reminder storage is local plaintext in this slice.
 
 A real signed-app OS alert with the window closed, Focus behavior, sleep/wake, and macOS permission toggling remain separate native acceptance tests. Unit tests or pending-request equality do not prove delivery.
+
+## Approved integration contract
+
+The coordinator reviewed the storage proposal before implementation. Decisions:
+
+- Seven elapsed days, not seven unspecified calendar days, bounds recurring catch-up.
+- `PlannedNotification` contains the existing `NotificationIntent` plus sorted unique original `occurrenceDates`. `ScheduleCalculator.plannedNotifications(for:now:horizon:quietHours:bypassQuietHours:includingStart:)` shares one calculation with the existing notifications API. `includingStart` defaults to false. Historical capture opts into an inclusive start, including the earliest supported Date, without creating an invalid earlier input.
+- A notice persists occurrence provenance. Never infer the source occurrence from its post-quiet-hours fire time or from the time its Snooze button is clicked. Coalesced notices require explicit occurrence selection. Snooze dismisses only the selected notice, and the UI explains that other notices remain independently dismissible.
+- Store value types: validated `NotificationPolicy` with quiet hours, explicit bypass and revision; `ReminderNotice` with stable ID, source UUID, title snapshot, scheduledAt, sourceRevision, capturedAt, occurrenceDates and optional dismissedAt; `NoticeCaptureResult` with insertedCount, activeCount and recurringScanStart.
+- Add store methods `notificationPolicy()`, `saveNotificationPolicy(_:expectedRevision:)`, `captureDueNotices(now:)`, `notices(includeDismissed:)`, `dismissNotice(id:now:)`, `reminder(id:)`, and `snoozeNotice(id:occurrenceAt:until:expectedRevision:now:)`. All throw on failure. Snooze validates the selected occurrence against both captured provenance and the current source, preserving dueAt and creation time.
+- Schema 2 adds a singleton policy and related notice records with foreign-key deletion cascade. Migrate inside a transaction after validating version-1 identity/payload invariants. Existing reminder bytes, revisions and desired generation are preserved under the default policy. Reject corrupt or unsupported input rather than recreating it.
+- Capture and dismissal do not change desired OS state, so they do not increment the notification generation. Policy edits and atomic source snooze do increment it once. Persisted notice truth is independent of macOS notification authorization.
+- Add explicit `desiredSystemNotifications(now:)` and `reconcileSystemNotifications(now:)` methods. These register all finite future one-time alerts, but only seven days of recurring alerts. Existing bounded horizon APIs keep their original semantics. Both reconciliation entry points share one single-flight state machine.
+- Add a month-away one-time alert and restart acceptance case. A one-time reminder must not depend on reopening the app seven days before its deadline merely to register with the OS. Recurrence beyond the rolling window still requires a later app run, and macOS presentation is never guaranteed.
+
+These are implementation decisions, not claims that the recovery tests or native journeys have passed.
