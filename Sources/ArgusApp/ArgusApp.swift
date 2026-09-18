@@ -13,6 +13,8 @@ struct ArgusApplication: App {
   private let appearance: AppearanceSettings
   private let activation: ActivationController
   private let glow: ScreenEdgeGlowController
+  private let voice: VoiceExperienceController
+  private let login: LoginItemController
 
   init() {
     let preferences: UserDefaults
@@ -24,9 +26,18 @@ struct ArgusApplication: App {
     let glow = ScreenEdgeGlowController()
     self.appearance = appearance
     self.glow = glow
-    self.activation = ActivationController(service: LocalAudioActivationService()) { _ in
-      glow.show(color: appearance.nsColor)
+    let feedback = VoiceFeedbackRelay()
+    let activation = ActivationController(service: LocalAudioActivationService()) { trigger in
+      glow.show(color: appearance.nsColor, reduceMotion: appearance.reduceMotion)
+      if let trigger { feedback.voice?.handleActivation(trigger) }
     }
+    self.activation = activation
+    let voice = VoiceExperienceController(activation: activation, speech: NativeSpeechOutput(),
+      defaults: preferences, permissions: NativeActivationPermissionChecker())
+    if let preferredMode = voice.preferredMode { activation.mode = preferredMode }
+    self.voice = voice
+    self.login = LoginItemController(service: NativeLoginItemService())
+    feedback.voice = voice
     do {
       guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else {
         throw AppStartupError.bundledAppRequired
@@ -57,11 +68,14 @@ struct ArgusApplication: App {
     WindowGroup("ARGUS", id: "argus-main") {
       Group {
         if let model {
-          TodayView(model: model, activation: activation, appearance: appearance)
+          TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login)
             .task {
-              lifecycle.connect(model, activation: activation, glow: glow)
+              if lifecycle.connect(model, voice: voice, glow: glow) {
+                await voice.restoreIfEnabled()
+              }
               await model.refresh()
             }
+            .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
         } else {
           ContentUnavailableView("Local storage unavailable", systemImage: "externaldrive.badge.exclamationmark",
             description: Text(startupError ?? "Unknown storage error"))
@@ -70,10 +84,13 @@ struct ArgusApplication: App {
       }
     }.defaultSize(width: 1040, height: 740)
     Settings {
-      if let model { SettingsView(model: model, activation: activation, appearance: appearance) }
+      if let model {
+        SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login)
+          .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
+      }
     }
-    MenuBarExtra("ARGUS", systemImage: activation.isListening ? "mic.fill" : "mic.slash") {
-      ActivationMenu(activation: activation, glow: glow)
+    MenuBarExtra("ARGUS", systemImage: voice.isSpeaking ? "speaker.wave.2.fill" : (activation.isListening ? "mic.fill" : "mic.slash")) {
+      ActivationMenu(activation: activation, voice: voice, glow: glow)
     }
   }
 }
@@ -85,14 +102,14 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   private var observers: [NSObjectProtocol] = []
   private var wakeObserver: NSObjectProtocol?
   private var refreshTimer: Timer?
-  private var activation: ActivationController?
+  private var voice: VoiceExperienceController?
   private var glow: ScreenEdgeGlowController?
-  private var suspensionMonitor: ActivationSuspensionMonitor?
+  private var voiceLifecycle: VoiceLifecycleBridge?
 
-  func connect(_ model: AppModel, activation: ActivationController, glow: ScreenEdgeGlowController) {
-    guard self.model == nil else { return }
+  func connect(_ model: AppModel, voice: VoiceExperienceController, glow: ScreenEdgeGlowController) -> Bool {
+    guard self.model == nil else { return false }
     self.model = model
-    self.activation = activation
+    self.voice = voice
     self.glow = glow
     let center = NotificationCenter.default
     for name in [NSApplication.didBecomeActiveNotification,
@@ -105,13 +122,18 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
       forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
         Task { @MainActor in await self?.model?.refresh() }
       }
-    // Never automatically resume capture after sleep, screen lock or a user switch.
-    suspensionMonitor = ActivationSuspensionMonitor { [weak self] in self?.stopActivation() }
+    voiceLifecycle = VoiceLifecycleBridge(onSuspend: { [weak self] reason in
+      self?.voice?.suspend(reason: reason)
+      self?.glow?.hide()
+    }, onResume: { [weak self] reason in
+      await self?.voice?.resume(reason: reason)
+    })
     refreshTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
       Task { @MainActor in
         await self?.model?.refresh()
       }
     }
+    return true
   }
 
   func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -119,27 +141,33 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_ notification: Notification) { stopActivation() }
 
   private func stopActivation() {
-    activation?.stop()
+    voiceLifecycle?.stop()
+    voice?.suspend(reason: .sessionInactive)
     glow?.hide()
   }
+}
+
+@MainActor private final class VoiceFeedbackRelay {
+  weak var voice: VoiceExperienceController?
 }
 
 private enum AppStartupError: Error { case bundledAppRequired }
 
 private struct ActivationMenu: View {
   let activation: ActivationController
+  let voice: VoiceExperienceController
   let glow: ScreenEdgeGlowController
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {
-    Text(activation.statusText)
+    Text(voice.statusText)
     Button("Open ARGUS") {
       openWindow(id: "argus-main")
       NSApp.activate(ignoringOtherApps: true)
     }
     Divider()
-    if activation.isEnabled {
-      Button("Stop listening") { activation.stop(); glow.hide() }
+    if activation.isEnabled || voice.alwaysListen || voice.isSpeaking {
+      Button("Stop listening") { voice.stopListening(); glow.hide() }
     } else {
       Button("Enable listening…") {
         // Consent and mode selection stay in the visible app, not a background action.
@@ -150,7 +178,7 @@ private struct ActivationMenu: View {
     Button("Preview edge glow") { activation.preview() }
     Divider()
     Button("Quit ARGUS") {
-      activation.stop()
+      voice.suspend(reason: .sessionInactive)
       glow.hide()
       NSApp.terminate(nil)
     }

@@ -6,15 +6,21 @@ public struct SettingsView: View {
   var model: AppModel
   var activation: ActivationController?
   var appearance: AppearanceSettings?
+  var voice: VoiceExperienceController?
+  var login: LoginItemController?
   @State private var policyEditor: PolicyEditorSession?
-  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil) {
+  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
+    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
+    self.voice = voice
+    self.login = login
   }
   public var body: some View {
     Form {
-      ActivationSettingsView(activation: activation, appearance: appearance)
+      if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
+      ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
       Section("Notifications") {
         Text(model.status)
         Text("Scheduled means macOS has a pending request, not that a banner was shown or seen. Focus, system settings, sleep and quitting ARGUS can affect timely reminders.")

@@ -5,16 +5,21 @@ public struct TodayView: View {
   var model: AppModel
   var activation: ActivationController?
   var appearance: AppearanceSettings?
+  var voice: VoiceExperienceController?
+  var login: LoginItemController?
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
   @State private var expandedNow = false
   @State private var expandedApproaching = false
 
-  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil) {
+  public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
+    voice: VoiceExperienceController? = nil, login: LoginItemController? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
+    self.voice = voice
+    self.login = login
   }
   public var body: some View {
     NavigationSplitView {
@@ -32,15 +37,15 @@ public struct TodayView: View {
         }.listStyle(.sidebar)
         VStack(alignment: .leading, spacing: 6) {
           if let activation {
-            Label(activation.isListening ? "Listening" : (activation.isEnabled ? "Awaiting permission" : "Microphone off"),
-              systemImage: activation.isListening ? "mic.fill" : "mic.slash")
-              .font(.caption.weight(.medium))
-              .foregroundStyle(activation.isListening ? (appearance?.color ?? .green) : .secondary)
-              .help(activation.statusText)
-              .accessibilityLabel(activation.statusText)
+            VoiceStatusOrb(state: voice?.isSpeaking == true ? .speaking : (activation.isListening ? .listening : .off),
+              accent: appearance?.color ?? .green, reduceMotion: appearance?.reduceMotion ?? false)
               .accessibilityIdentifier("today.activation.status")
-            if activation.isEnabled {
-              Button("Stop listening") { activation.stop() }
+            Text(voice?.statusText ?? activation.statusText)
+              .font(.caption2).foregroundStyle(.secondary)
+            if activation.isEnabled || voice?.alwaysListen == true || voice?.isSpeaking == true {
+              Button("Stop listening") {
+                if let voice { voice.stopListening() } else { activation.stop() }
+              }
                 .font(.caption).accessibilityIdentifier("today.activation.stop")
             } else {
               Button("Activation settings") { destination = .settings }
@@ -53,7 +58,7 @@ public struct TodayView: View {
         }.padding(18)
       }.navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
     } detail: {
-      if destination == .settings { SettingsView(model: model, activation: activation, appearance: appearance) }
+      if destination == .settings { SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login) }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
     }

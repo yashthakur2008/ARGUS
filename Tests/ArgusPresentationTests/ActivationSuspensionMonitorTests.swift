@@ -3,6 +3,31 @@ import Testing
 @testable import ArgusPresentation
 
 @MainActor struct ActivationSuspensionMonitorTests {
+  @Test func reasonedEventsAreSynchronousAndDoNotConflateWakeWithUnlock() {
+    let workspace = NotificationCenter()
+    let locks = NotificationCenter()
+    var events: [String] = []
+    let monitor = ActivationSuspensionMonitor(workspaceCenter: workspace, lockCenter: locks,
+      onLifecycleChange: { reason, suspended in
+        events.append("\(reason):\(suspended)")
+      })
+    defer { monitor.stopObserving() }
+    workspace.post(name: NSWorkspace.willSleepNotification, object: nil)
+    locks.post(name: NSNotification.Name("com.apple.screenIsLocked"), object: nil)
+    workspace.post(name: NSWorkspace.didWakeNotification, object: nil)
+    #expect(events == ["systemSleep:true", "screenLock:true", "systemSleep:false"])
+    locks.post(name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
+    workspace.post(name: NSWorkspace.screensDidSleepNotification, object: nil)
+    workspace.post(name: NSWorkspace.screensDidWakeNotification, object: nil)
+    workspace.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+    workspace.post(name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
+    #expect(events.suffix(5) == ["screenLock:false", "displaySleep:true", "displaySleep:false",
+      "sessionInactive:true", "sessionInactive:false"])
+    monitor.stopObserving()
+    locks.post(name: NSNotification.Name("com.apple.screenIsUnlocked"), object: nil)
+    #expect(events.count == 8)
+  }
+
   @Test func suspensionRevokesConsentBeforeNotificationReturns() {
     let workspace = NotificationCenter()
     let locks = NotificationCenter()
