@@ -19,6 +19,8 @@ public final class AppModel {
   private let clock: @Sendable () -> Date
   private let reconciler: NotificationReconciler
   private let refreshLoader: any ReminderRefreshLoading
+  private let draftWriter: any ReminderDraftWriting
+  private var draftWriteInFlight = false
   private let requestPermission: (@Sendable () async throws -> Void)?
   private var readFailed = false
   private var refreshSequence = 0
@@ -35,7 +37,8 @@ public final class AppModel {
   init(store: ReminderStore, client: any NotificationClient,
     clock: @escaping @Sendable () -> Date,
     requestPermission: (@Sendable () async throws -> Void)? = nil,
-    refreshLoader: any ReminderRefreshLoading) {
+    refreshLoader: any ReminderRefreshLoading,
+    draftWriter: (any ReminderDraftWriting)? = nil) {
     self.store = store
     self.recovery = ReminderRecoveryModel(store: store)
     self.clock = clock
@@ -43,6 +46,7 @@ public final class AppModel {
     self.reconciler = NotificationReconciler(store: store, client: client)
     self.requestPermission = requestPermission
     self.refreshLoader = refreshLoader
+    self.draftWriter = draftWriter ?? ReminderDraftWriter(store: store)
     recovery.onExplicitChange = { [weak self] in self?.invalidateRefresh() }
   }
 
@@ -71,13 +75,14 @@ public final class AppModel {
 
   /// The policy belongs to this accepted load, never a retained global cache.
   func refreshOutcome() async -> RefreshPublicationOutcome {
+    guard !draftWriteInFlight else { return .superseded }
     refreshSequence += 1
     let sequence = refreshSequence
     let now = clock()
     referenceDate = now
     isReconciling = true
     let loaded = await refreshLoader.load(now: now, sequence: sequence)
-    guard sequence == refreshSequence else { return .superseded }
+    guard !draftWriteInFlight, sequence == refreshSequence else { return .superseded }
     let loadedPolicy: NotificationPolicy
     switch loaded {
     case .loaded(let loadedReminders, let notices, let policy):
@@ -95,7 +100,7 @@ public final class AppModel {
       return .failed
     }
     let checked = await reconciler.reconcileSystemNotifications(now: now)
-    guard sequence == refreshSequence else { return .superseded }
+    guard !draftWriteInFlight, sequence == refreshSequence else { return .superseded }
     result = checked
     isReconciling = false
     return .loaded(loadedPolicy)
@@ -186,7 +191,8 @@ public final class AppModel {
     do {
       let now = clock()
       let reminder = try draft.reminder(now: now)
-      try saveValidated(reminder, expectedRevision: draft.original?.revision, now: now)
+      try validateAdmission(reminder, now: now)
+      try await persistDraft(reminder, expectedRevision: draft.original?.revision)
       message = nil
       await refresh()
       return true
@@ -285,10 +291,26 @@ public final class AppModel {
   /// permissive so existing records can still be opened and explicitly repaired.
   private func saveValidated(_ reminder: Reminder, expectedRevision: Int64?, now: Date,
     expectedPolicyRevision: Int64? = nil) throws {
-    _ = try ScheduleCalculator.plannedNotifications(for: reminder,
-      now: now, horizon: now, includingStart: true)
+    try validateAdmission(reminder, now: now)
     try store.save(reminder, expectedRevision: expectedRevision, expectedPolicyRevision: expectedPolicyRevision)
     invalidateRefresh()
+  }
+
+  private func validateAdmission(_ reminder: Reminder, now: Date) throws {
+    _ = try ScheduleCalculator.plannedNotifications(for: reminder,
+      now: now, horizon: now, includingStart: true)
+  }
+
+  private func persistDraft(_ reminder: Reminder, expectedRevision: Int64?) async throws {
+    draftWriteInFlight = true
+    invalidateRefresh()
+    // End the write interval before the caller starts its follow-up refresh.
+    // Failure also fences pending loads and retains the last accepted UI data.
+    defer {
+      draftWriteInFlight = false
+      invalidateRefresh()
+    }
+    try await draftWriter.save(reminder, expectedRevision: expectedRevision)
   }
 
   /// Keep the existing target while its policy-adjusted alert is pending. A concurrent

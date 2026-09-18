@@ -7,6 +7,7 @@ struct ReminderEditor: View {
   @State var draft: ReminderDraft
   var context: String? = nil
   @State private var validationError: String?
+  @State private var isSaving = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -37,19 +38,24 @@ struct ReminderEditor: View {
           .accessibilityLabel("Alert offsets in minutes, comma separated")
         Text("Use 0 for at the deadline, or 0, 10, 30. Up to 8 alerts. Leave blank for no notifications.")
           .font(.caption).foregroundStyle(.secondary)
-      }.formStyle(.grouped)
+      }.formStyle(.grouped).disabled(isSaving)
       if let validationError { Text(validationError).foregroundStyle(.red).font(.callout) }
       HStack {
-        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(isSaving)
         Spacer()
         Button("Save reminder") {
+          guard !isSaving, !model.isWorking else { return }
+          isSaving = true
+          let submittedDraft = draft
           Task {
-            if await model.save(draft) { dismiss() }
+            let saved = await model.save(submittedDraft)
+            isSaving = false
+            if saved { dismiss() }
             else { validationError = model.message }
           }
-        }.keyboardShortcut(.defaultAction).disabled(model.isWorking)
+        }.keyboardShortcut(.defaultAction).disabled(model.isWorking || isSaving)
       }
-    }.padding(24).frame(width: 520)
+    }.padding(24).frame(width: 520).interactiveDismissDisabled(isSaving)
   }
 }
 
