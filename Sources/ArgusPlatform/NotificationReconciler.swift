@@ -73,7 +73,18 @@ public actor NotificationReconciler {
       }
       for intent in desired where !pending.contains(intent) {
         try await client.add(intent)
-        guard try await isCurrent(generation: generation, authorization: authorization) else { return outcome(nil, stale: true) }
+        do {
+          guard try await isCurrent(generation: generation, authorization: authorization) else {
+            // This completed side effect is already known to be stale. Do not depend
+            // on another pending read or planning pass to clean up its owned ID.
+            await removeKnownAddedIntent(intent)
+            return outcome(nil, stale: true)
+          }
+        } catch {
+          // If freshness cannot be established, leave no unverified completed add.
+          await removeKnownAddedIntent(intent)
+          throw error
+        }
       }
       // Verify, rather than treating adapter acceptance as evidence of OS state.
       let verified = try await client.pending().filter { $0.id.hasPrefix(NotificationIntent.identifierPrefix) }
@@ -86,6 +97,11 @@ public actor NotificationReconciler {
     } catch {
       return outcome(String(describing: error))
     }
+  }
+
+  private func removeKnownAddedIntent(_ intent: NotificationIntent) async {
+    guard intent.id.hasPrefix(NotificationIntent.identifierPrefix) else { return }
+    await client.remove(ids: [intent.id])
   }
 
   private func isCurrent(generation: Int64, authorization: NotificationAuthorization) async throws -> Bool {
