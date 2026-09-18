@@ -156,3 +156,45 @@ private enum TestFailure: Error { case unavailable }
   #expect(service.state == .stopped)
   #expect(backend.micRequests == 0)
 }
+
+@MainActor struct AuthorizedOnlyActivationTests {
+  @Test func automaticStartNeverCallsPermissionRequests() async {
+    let backend = AuthorizedOnlyBackendFake()
+    let service = LocalAudioActivationService(backend: backend)
+    await service.startIfAuthorized(mode: .both)
+    #expect(backend.requests == 0)
+    #expect(service.state == .listening(.both))
+    #expect(backend.capture.starts == 1)
+  }
+
+  @Test func automaticStartDeniedDoesNotRequestOrCapture() async {
+    let backend = AuthorizedOnlyBackendFake()
+    backend.authorized = false
+    let service = LocalAudioActivationService(backend: backend)
+    await service.startIfAuthorized(mode: .clap)
+    #expect(backend.requests == 0)
+    #expect(backend.capture.starts == 0)
+    guard case .unavailable = service.state else {
+      Issue.record("Expected actionable authorization requirement")
+      return
+    }
+  }
+}
+
+@MainActor private final class AuthorizedOnlyBackendFake: AudioActivationBackend {
+  var requests = 0
+  var authorized = true
+  let capture = AuthorizedOnlySessionFake()
+  func existingPermissionsAllow(mode: ActivationMode) -> Bool { authorized }
+  func requestMicrophonePermission() async -> Bool { requests += 1; return true }
+  func requestSpeechPermission() async -> Bool { requests += 1; return true }
+  func makeSession() -> any AudioActivationSession { capture }
+}
+@MainActor private final class AuthorizedOnlySessionFake: AudioActivationSession {
+  var starts = 0
+  func start(mode: ActivationMode,
+    onLevels: @escaping @MainActor @Sendable (Double, Double, Double) -> Void,
+    onTranscript: @escaping @MainActor @Sendable (String, Double, Bool) -> Void,
+    onFailure: @escaping @MainActor @Sendable (String) -> Void) throws { starts += 1 }
+  func stop() {}
+}

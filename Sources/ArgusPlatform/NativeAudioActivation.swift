@@ -16,6 +16,9 @@ struct OnDeviceSpeechPolicy {
 }
 
 @MainActor final class NativeAudioActivationBackend: AudioActivationBackend {
+  func existingPermissionsAllow(mode: ActivationMode) -> Bool {
+    NativeActivationPermissionChecker().isAuthorized(for: mode)
+  }
   func requestMicrophonePermission() async -> Bool {
     switch AVCaptureDevice.authorizationStatus(for: .audio) {
     case .authorized: return true

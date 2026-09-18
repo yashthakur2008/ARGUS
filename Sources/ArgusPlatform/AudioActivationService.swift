@@ -8,14 +8,24 @@ public enum AudioActivationState: Sendable, Equatable {
   var onActivation: (@MainActor @Sendable (ActivationTrigger) -> Void)? { get set }
   var onStateChange: (@MainActor @Sendable (AudioActivationState) -> Void)? { get set }
   func start(mode: ActivationMode) async
+  func startIfAuthorized(mode: ActivationMode) async
   func stop()
+}
+
+public extension AudioActivationService {
+  /// Older adapters must fail closed rather than fall back to a prompting start.
+  func startIfAuthorized(mode: ActivationMode) async { stop() }
 }
 
 /// Permission and capture boundaries are injected without constructing an audio engine.
 @MainActor public protocol AudioActivationBackend: AnyObject {
+  func existingPermissionsAllow(mode: ActivationMode) -> Bool
   func requestMicrophonePermission() async -> Bool
   func requestSpeechPermission() async -> Bool
   func makeSession() -> any AudioActivationSession
+}
+public extension AudioActivationBackend {
+  func existingPermissionsAllow(mode: ActivationMode) -> Bool { false }
 }
 @MainActor public protocol AudioActivationSession: AnyObject {
   func start(
@@ -42,12 +52,20 @@ public enum AudioActivationState: Sendable, Equatable {
   public init(backend: any AudioActivationBackend) { self.backend = backend }
 
   public func start(mode: ActivationMode) async {
+    await start(mode: mode, requestingPermissions: true)
+  }
+
+  public func startIfAuthorized(mode: ActivationMode) async {
+    await start(mode: mode, requestingPermissions: false)
+  }
+
+  private func start(mode: ActivationMode, requestingPermissions: Bool) async {
     tearDown()
     let token = generation
     guard !Task.isCancelled else { setState(.stopped); return }
     setState(.requestingPermission)
     await withTaskCancellationHandler {
-      await begin(mode: mode, token: token)
+      await begin(mode: mode, token: token, requestingPermissions: requestingPermissions)
     } onCancel: {
       Task { @MainActor [weak self] in
         guard let self, self.generation == token else { return }
@@ -56,19 +74,26 @@ public enum AudioActivationState: Sendable, Equatable {
     }
   }
 
-  private func begin(mode: ActivationMode, token: UInt64) async {
+  private func begin(mode: ActivationMode, token: UInt64, requestingPermissions: Bool) async {
     guard isCurrent(token) else { return }
-    let microphoneAllowed = await backend.requestMicrophonePermission()
-    guard isCurrent(token) else { return }
-    guard microphoneAllowed else {
-      fail("Microphone access is denied. Allow ARGUS in System Settings > Privacy & Security > Microphone, then enable again.")
-      return
-    }
-    if mode != .clap {
-      let speechAllowed = await backend.requestSpeechPermission()
+    if requestingPermissions {
+      let microphoneAllowed = await backend.requestMicrophonePermission()
       guard isCurrent(token) else { return }
-      guard speechAllowed else {
-        fail("Speech recognition access is denied. Allow ARGUS in System Settings > Privacy & Security > Speech Recognition, then enable again.")
+      guard microphoneAllowed else {
+        fail("Microphone access is denied. Allow ARGUS in System Settings > Privacy & Security > Microphone, then enable again.")
+        return
+      }
+      if mode != .clap {
+        let speechAllowed = await backend.requestSpeechPermission()
+        guard isCurrent(token) else { return }
+        guard speechAllowed else {
+          fail("Speech recognition access is denied. Allow ARGUS in System Settings > Privacy & Security > Speech Recognition, then enable again.")
+          return
+        }
+      }
+    } else {
+      guard backend.existingPermissionsAllow(mode: mode) else {
+        fail("Enable listening to review microphone and speech permissions.")
         return
       }
     }
