@@ -10,7 +10,9 @@
 - `2d7f294`: README now distinguishes local reminder/recognition behavior from opt-in ElevenLabs HTTPS text-to-speech and no longer lists voice output as entirely unimplemented.
 - `41d0556`: AppModel preflights active raw alert arithmetic before saving user commands, drafts and ordinary snoozes. Eighteen before-fix assertions reproduced the failure. Full suite: 312 tests passed afterward. Existing bad records can still be opened and repaired, and dormant snoozed/completed fields retain their prior storage contract.
 - `b2e623f` and `e79ad38`: packaging builds a fresh staged bundle, validates before replacement, preserves rollback data on failure, and refuses competing packagers. The standard verification entrypoint passed 14 synthetic packaging regressions, 312 Swift tests, and a real development release build with signature/runtime checks. SIGKILL/power-loss recovery remains manual, not an atomic exchange guarantee.
-- Independent source reviews approved both snooze fixes and the admission guard. No production database, credentials, subscriptions, notification permissions, or remote repository history was changed during these fixes.
+- `b218cfd`: ordinary UI/command snoozes preserve a quiet-hours-deferred occurrence target. The save fences both reminder and policy revisions atomically. Existing unfenced store compatibility is unchanged.
+- `72d74b2`: voice lifecycle monitoring and startup gating attach before any Scene exposes capture controls. Settings-first, failed storage startup, duplicate attachment and termination paths have fake-boundary regressions. Integrated verification passed **324 Swift tests, 14 packaging regressions, and real development release bundle/signature/runtime checks**. No native capture or launch-order acceptance was performed.
+- Independent source reviews approved the earlier snooze fixes and admission guard. No production database, credentials, subscriptions, notification permissions, or remote repository history was changed during these fixes.
 
 Raw red/green test output, task cards, and resource checks are retained in the local overnight run `overnight_1789716322778_9474728396623280354`. Tests use synthetic credentials and replaceable network/audio boundaries. No authorized live ElevenLabs speech test has been completed.
 
@@ -34,7 +36,7 @@ Raw red/green test output, task cards, and resource checks are retained in the l
 ## Remaining bounded investigations
 
 1. Raw active-offset admission is now checked at the AppModel boundary. This does not validate every quiet-hours policy or future-delivery boundary. Core decoding and the direct store API deliberately retain compatibility, including dormant out-of-range fields and explicit repair of existing records.
-2. Ordinary reminder snooze selection uses raw `snoozedUntil`; an effective quiet-hours-deferred delivery can remain pending after that instant. The committed conflict safeguard applies to **notice snooze**, not every source-reminder action.
+2. Both notice and ordinary reminder snooze routes now respect effective quiet-hours-deferred delivery. Ordinary snooze additionally rejects saves if the policy snapshot changed before its transaction. This does not establish every future calendar or policy-boundary case.
 3. Changing quiet-hours policy can assign a new delivery identifier to a previously dismissed occurrence. Product semantics for acknowledgement across policy changes need explicit review before altering notice identity or history.
 4. Fresh staged packaging and failure-preservation checks now pass. Inspect and recover a retained `.ARGUS-backup.*` and `.ARGUS-packaging.lock` after an uncatchable interruption before starting another package. No contamination of an installed app was observed.
 
