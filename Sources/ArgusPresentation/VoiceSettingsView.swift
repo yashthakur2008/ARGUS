@@ -16,10 +16,7 @@ public struct VoiceSettingsView: View {
       Section("Voice experience") {
         Toggle("Always listen", isOn: Binding(
           get: { voice.alwaysListen },
-          set: { enabled in
-            if enabled { Task { await voice.setAlwaysListen(true) } }
-            else { voice.stopListening() }
-          }
+          set: { voice.requestAlwaysListen($0) }
         ))
         .accessibilityIdentifier("voice.alwaysListen")
         .accessibilityHint("Remembers your choice while ARGUS runs. Turning off stops listening and speech.")
@@ -38,7 +35,7 @@ public struct VoiceSettingsView: View {
             .accessibilityIdentifier("voice.stop")
             .accessibilityHint("Stops listening and speech, and turns off Always listen.")
         }
-        Text("Always listen remembers your opt-in. Sleep and locking pause listening. It resumes only when your Mac is available and microphone and speech permissions are already allowed. Stop listening turns off the remembered opt-in.")
+        Text("Always listen remembers your opt-in. Sleep and locking pause listening. It resumes only when your Mac is available and microphone and speech permissions are already allowed. After a cold launch, ARGUS waits for an observed unlock or an explicit Start listening action. It does not infer the initial lock state. Stop listening turns off the remembered opt-in.")
           .font(.caption).foregroundStyle(.secondary)
         Text("Spoken responses use installed macOS voices on this Mac. Audio is not sent to a speech provider. You can keep listening on with spoken responses off.")
           .font(.caption).foregroundStyle(.secondary)
