@@ -18,21 +18,32 @@ public final class AppModel {
   public let store: ReminderStore
   private let clock: @Sendable () -> Date
   private let reconciler: NotificationReconciler
+  private let refreshLoader: any ReminderRefreshLoading
   private let requestPermission: (@Sendable () async throws -> Void)?
   private var readFailed = false
   private var refreshSequence = 0
   private var deletionRequestedAt: Date?
   public static let examples = "Try “remind me to Stretch in 20 minutes” or “every weekday at 09:00, Plan the day”."
 
-  public init(store: ReminderStore, client: any NotificationClient,
+  public convenience init(store: ReminderStore, client: any NotificationClient,
     clock: @escaping @Sendable () -> Date,
     requestPermission: (@Sendable () async throws -> Void)? = nil) {
+    self.init(store: store, client: client, clock: clock, requestPermission: requestPermission,
+      refreshLoader: ReminderRefreshLoader(store: store))
+  }
+
+  init(store: ReminderStore, client: any NotificationClient,
+    clock: @escaping @Sendable () -> Date,
+    requestPermission: (@Sendable () async throws -> Void)? = nil,
+    refreshLoader: any ReminderRefreshLoading) {
     self.store = store
     self.recovery = ReminderRecoveryModel(store: store)
     self.clock = clock
     self.referenceDate = clock()
     self.reconciler = NotificationReconciler(store: store, client: client)
     self.requestPermission = requestPermission
+    self.refreshLoader = refreshLoader
+    recovery.onExplicitChange = { [weak self] in self?.invalidateRefresh() }
   }
 
   public var status: String {
@@ -50,25 +61,53 @@ public final class AppModel {
   }
 
   public func refresh() async {
+    _ = await refreshOutcome()
+  }
+
+  /// The policy belongs to this accepted load, never a retained global cache.
+  func refreshOutcome() async -> RefreshPublicationOutcome {
     refreshSequence += 1
     let sequence = refreshSequence
-    referenceDate = clock()
-    do {
-      reminders = try store.list()
-      try recovery.refresh(now: referenceDate)
+    let now = clock()
+    referenceDate = now
+    isReconciling = true
+    let loaded = await refreshLoader.load(now: now, sequence: sequence)
+    guard sequence == refreshSequence else { return .superseded }
+    let loadedPolicy: NotificationPolicy
+    switch loaded {
+    case .loaded(let loadedReminders, let notices, let policy):
+      reminders = loadedReminders
+      recovery.applyLoaded(notices: notices, policy: policy)
+      loadedPolicy = policy
       if readFailed { message = nil }
       readFailed = false
-    } catch {
-      readFailed = true
-      isReconciling = false
-      result = nil
-      message = "Could not read reminders: \(error)"
-      return
+    case .listFailure(let error):
+      failRefresh(error)
+      return .failed
+    case .recoveryFailure(let loadedReminders, let error):
+      reminders = loadedReminders
+      failRefresh(error)
+      return .failed
     }
-    isReconciling = true
-    let checked = await reconciler.reconcileSystemNotifications(now: referenceDate)
-    guard sequence == refreshSequence else { return }
+    let checked = await reconciler.reconcileSystemNotifications(now: now)
+    guard sequence == refreshSequence else { return .superseded }
     result = checked
+    isReconciling = false
+    return .loaded(loadedPolicy)
+  }
+
+  private func failRefresh(_ error: String) {
+    readFailed = true
+    isReconciling = false
+    result = nil
+    message = "Could not read reminders: \(error)"
+  }
+
+  /// Successful local writes/publication invalidate pending loads, including direct
+  /// recovery actions. External writes after a snapshot remain eventual until refresh.
+  private func invalidateRefresh() {
+    refreshSequence += 1
+    result = nil
     isReconciling = false
   }
 
@@ -127,6 +166,7 @@ public final class AppModel {
     do {
       guard try find(reviewed.id) == reviewed else { throw StoreError.conflict }
       try store.delete(id: reviewed.id, expectedRevision: reviewed.revision)
+      invalidateRefresh()
       message = nil
     } catch {
       message = "Reminder changed or could not be deleted. Please review it again. \(error)"
@@ -243,6 +283,7 @@ public final class AppModel {
     _ = try ScheduleCalculator.plannedNotifications(for: reminder,
       now: now, horizon: now, includingStart: true)
     try store.save(reminder, expectedRevision: expectedRevision, expectedPolicyRevision: expectedPolicyRevision)
+    invalidateRefresh()
   }
 
   /// Keep the existing target while its policy-adjusted alert is pending. A concurrent
@@ -272,3 +313,7 @@ public final class AppModel {
 }
 
 public enum PresentationError: Error { case reminderNotFound, invalidAlertMinutes }
+
+enum RefreshPublicationOutcome: Equatable, Sendable {
+  case loaded(NotificationPolicy), failed, superseded
+}

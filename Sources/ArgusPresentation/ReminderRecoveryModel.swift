@@ -9,15 +9,22 @@ public final class ReminderRecoveryModel {
   public private(set) var policy: NotificationPolicy?
   public private(set) var issue: String?
   private let store: ReminderStore
+  @ObservationIgnored var onExplicitChange: (@MainActor () -> Void)?
   public init(store: ReminderStore) { self.store = store }
   public var activeNotices: [ReminderNotice] { notices.filter { $0.dismissedAt == nil } }
   public var attentionCount: Int { Set(activeNotices.map(\.reminderID)).count }
   public func refresh(now: Date) throws {
+    // Fence pending asynchronous publication even if capture commits but a later read fails.
+    onExplicitChange?()
     _ = try store.captureDueNotices(now: now)
     let loadedNotices = try store.notices(includeDismissed: true)
     let loadedPolicy = try store.notificationPolicy()
-    notices = loadedNotices
-    policy = loadedPolicy
+    applyLoaded(notices: loadedNotices, policy: loadedPolicy)
+  }
+
+  func applyLoaded(notices: [ReminderNotice], policy: NotificationPolicy) {
+    self.notices = notices
+    self.policy = policy
   }
   public func open(_ notice: ReminderNotice) -> Reminder? {
     do {
@@ -33,6 +40,7 @@ public final class ReminderRecoveryModel {
   @discardableResult public func dismiss(_ notice: ReminderNotice, now: Date) -> Bool {
     do {
       try store.dismissNotice(id: notice.id, now: now)
+      onExplicitChange?()
       notices = try store.notices(includeDismissed: true)
       issue = nil
       return true
@@ -49,6 +57,7 @@ public final class ReminderRecoveryModel {
     do {
       try store.snoozeNotice(id: notice.id, occurrenceAt: selected, until: until,
         expectedRevision: expectedRevision, now: now)
+      onExplicitChange?()
       notices = try store.notices(includeDismissed: true)
       issue = nil
       return true
@@ -61,6 +70,7 @@ public final class ReminderRecoveryModel {
   @discardableResult public func savePolicy(_ policy: NotificationPolicy, expectedRevision: Int64) -> Bool {
     do {
       try store.saveNotificationPolicy(policy, expectedRevision: expectedRevision)
+      onExplicitChange?()
       self.policy = try store.notificationPolicy()
       issue = nil
       return true

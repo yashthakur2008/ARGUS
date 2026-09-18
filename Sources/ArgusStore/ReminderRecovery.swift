@@ -26,37 +26,40 @@ extension ReminderStore {
 
   public func captureDueNotices(now: Date) throws -> NoticeCaptureResult {
     try StoreDates.validate(now)
-    let start = max(StoreDates.minimum, now.addingTimeInterval(-StoreDates.week))
     return try lock.withLock {
-      try database.transaction {
-        let policy = try database.readPolicy()
-        var captured = Set(try database.readNotices().map(\.id))
-        var inserted = 0
-        for reminder in try database.readReminders() {
-          let plans = try ScheduleCalculator.plannedNotifications(for: reminder,
-            now: reminder.recurrence == nil ? StoreDates.minimum : start, horizon: now,
-            quietHours: policy.quietHours, bypassQuietHours: policy.bypassQuietHours, includingStart: true)
-          for plan in plans where captured.insert(plan.intent.id).inserted {
-            let intent = plan.intent
-            let record = NoticeRecord(id: intent.id, reminderID: intent.reminderID,
-              titleSnapshot: intent.title, scheduledAt: intent.fireAt, sourceRevision: intent.sourceRevision,
-              capturedAt: now, occurrenceDates: plan.occurrenceDates)
-            try record.validate()
-            try database.statement("INSERT INTO reminder_notices (id, reminder_id, scheduled_at, payload) VALUES (?, ?, ?, ?)") { statement in
-              try database.bind(record.id, to: statement, at: 1)
-              try database.bind(record.reminderID.uuidString, to: statement, at: 2)
-              try database.bind(record.scheduledAt, to: statement, at: 3)
-              try database.bind(JSONEncoder().encode(record), to: statement, at: 4)
-              _ = try database.step(statement)
-              try database.requireSingleChangedRow()
-            }
-            inserted += 1
-          }
+      try database.transaction { try captureDueNoticesLocked(now: now) }
+    }
+  }
+
+  /// Caller owns the store lock and an immediate transaction. Never starts a nested transaction.
+  func captureDueNoticesLocked(now: Date) throws -> NoticeCaptureResult {
+    let start = max(StoreDates.minimum, now.addingTimeInterval(-StoreDates.week))
+    let policy = try database.readPolicy()
+    var captured = Set(try database.readNotices().map(\.id))
+    var inserted = 0
+    for reminder in try database.readReminders() {
+      let plans = try ScheduleCalculator.plannedNotifications(for: reminder,
+        now: reminder.recurrence == nil ? StoreDates.minimum : start, horizon: now,
+        quietHours: policy.quietHours, bypassQuietHours: policy.bypassQuietHours, includingStart: true)
+      for plan in plans where captured.insert(plan.intent.id).inserted {
+        let intent = plan.intent
+        let record = NoticeRecord(id: intent.id, reminderID: intent.reminderID,
+          titleSnapshot: intent.title, scheduledAt: intent.fireAt, sourceRevision: intent.sourceRevision,
+          capturedAt: now, occurrenceDates: plan.occurrenceDates)
+        try record.validate()
+        try database.statement("INSERT INTO reminder_notices (id, reminder_id, scheduled_at, payload) VALUES (?, ?, ?, ?)") { statement in
+          try database.bind(record.id, to: statement, at: 1)
+          try database.bind(record.reminderID.uuidString, to: statement, at: 2)
+          try database.bind(record.scheduledAt, to: statement, at: 3)
+          try database.bind(JSONEncoder().encode(record), to: statement, at: 4)
+          _ = try database.step(statement)
+          try database.requireSingleChangedRow()
         }
-        return NoticeCaptureResult(insertedCount: inserted,
-          activeCount: try database.readNotices(includeDismissed: false).count, recurringScanStart: start)
+        inserted += 1
       }
     }
+    return NoticeCaptureResult(insertedCount: inserted,
+      activeCount: try database.readNotices(includeDismissed: false).count, recurringScanStart: start)
   }
 
   public func notices(includeDismissed: Bool = false) throws -> [ReminderNotice] {
