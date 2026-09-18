@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 SWIFT="${ARGUS_SWIFT:-swift}"
 "$SWIFT" --version
+bash scripts/test-build-dev-app.sh
 "$SWIFT" test --disable-xctest --enable-swift-testing
 ARGUS_SWIFT="$SWIFT" bash scripts/build-dev-app.sh
 APP="$ROOT/build/ARGUS.app"
