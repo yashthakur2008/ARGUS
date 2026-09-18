@@ -4,7 +4,7 @@ A native macOS, local-first assistant for reminders, reusable prompts, and bound
 
 **Status: working reminder development prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and a native notification adapter. It has no runtime language model, cloud backend, shell agent, or Jcode dependency.
 
-At the latest independently verified checkpoint, **94 Swift Testing tests passed**, release bundling/signature checks passed, and an isolated native-app demonstration exercised typed creation, persistence across Quit/relaunch, deadline-preserving snooze, declined deletion, and confirmed deletion. The native demonstration also found a relative-snooze timing defect, which is being fixed. Independent review found additional presentation edge cases under active repair. [Read the evidence and limitations](docs/verification/2026-09-17-reminders-slice.md).
+At the latest independently verified checkpoint, **134 Swift Testing tests passed**, release bundling/signature checks passed, and isolated native-app demonstrations exercised typed creation, persistence across Quit/relaunch, exact ten-minute snooze, delete confirmation, notice dismissal, and persisted quiet-hours settings. Review regressions are fixed and tested. Actual notification delivery and release sandbox/signing remain unverified. [Read the evidence and limitations](docs/verification/2026-09-17-reminders-slice.md).
 
 ## Available in the prototype
 
@@ -15,7 +15,7 @@ At the latest independently verified checkpoint, **94 Swift Testing tests passed
 - One-use, expiring delete confirmation bound to the reviewed reminder.
 - Explicit notification opt-in, generic notification previews, and separate saved/pending/scheduled status. Scheduled never means observed delivery.
 
-Persisted quiet-hours settings, notice history/dismissal, and bounded missed-alert recovery are the next reminder increment. Core quiet-hours calculations alone are not advertised as an end-user setting.
+Persisted quiet-hours settings, notice history with independent dismissal, and bounded missed-alert recovery are implemented. Recovered notices record due times, not proof of notification delivery. One-time notifications are planned beyond the recurring seven-day window.
 
 ## Build and run
 
