@@ -71,8 +71,8 @@ func corruptionIsVisibleAndNeverRepaired(kind: String) throws {
   let (url, _) = try fixture()
   defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
   let database = try SQLiteDatabase(url: url)
-  try database.execute("PRAGMA user_version = 2")
-  #expect(throws: StoreError.unsupportedSchema(2)) { _ = try ReminderStore(databaseURL: url) }
+  try database.execute("PRAGMA user_version = 3")
+  #expect(throws: StoreError.unsupportedSchema(3)) { _ = try ReminderStore(databaseURL: url) }
   try database.execute("PRAGMA user_version = 0")
   #expect(throws: (any Error).self) { _ = try ReminderStore(databaseURL: url) }
   #expect(try database.scalar("SELECT count(*) FROM store_metadata") == 1)
@@ -111,7 +111,7 @@ func corruptionIsVisibleAndNeverRepaired(kind: String) throws {
   #expect(throws: (any Error).self) { _ = try ReminderStore(databaseURL: url) }
 }
 
-@Test(arguments: [Int64(0), Int64(2)])
+@Test(arguments: [Int64(0), Int64(3)])
 func rejectedSchemaDoesNotChangeDatabaseBytes(version: Int64) throws {
   let (url, _) = try fixture()
   defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -127,6 +127,8 @@ func rejectedSchemaDoesNotChangeDatabaseBytes(version: Int64) throws {
   let (url, _) = try fixture()
   defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
   let database = try SQLiteDatabase(url: url)
+  try database.execute("DROP TABLE reminder_notices")
+  try database.execute("DROP TABLE notification_policy")
   try database.execute("DROP TABLE reminders")
   try database.execute("DROP TABLE store_metadata")
   try database.execute("CREATE TABLE sqlitex_notes (content TEXT)")

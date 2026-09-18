@@ -284,3 +284,84 @@ func knownStaleAddIsRemovedEvenWhenNextPendingFails(revoke: Bool) async throws {
   #expect(await client.values.count == 1)
   #expect(await client.values[other.id] == other)
 }
+
+@Test func recoverySystemReconcilesMonthAwayAfterRestartWithoutCatchUpBurst() async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let url = directory.appendingPathComponent("state.sqlite")
+  let now = Date(timeIntervalSince1970: 1_800_000_000)
+  let store = try ReminderStore(databaseURL: url)
+  let future = try Reminder(title: "Month away", dueAt: now.addingTimeInterval(30 * 86400), timeZoneID: "UTC", createdAt: now, updatedAt: now)
+  let past = try Reminder(title: "Past", dueAt: now.addingTimeInterval(-30 * 86400), timeZoneID: "UTC", createdAt: now, updatedAt: now)
+  try store.save(future, expectedRevision: nil)
+  try store.save(past, expectedRevision: nil)
+  #expect(try store.captureDueNotices(now: now).activeCount == 1)
+  let client = FakeNotifications()
+  let result = await NotificationReconciler(store: store, client: client).reconcileSystemNotifications(now: now)
+  #expect(!result.isPending)
+  #expect(result.scheduledCount == 1)
+  #expect(try await client.pending().first?.reminderID == future.id)
+  let reopened = try ReminderStore(databaseURL: url)
+  let retry = await NotificationReconciler(store: reopened, client: client).reconcileSystemNotifications(now: now)
+  #expect(!retry.isPending)
+  #expect(await client.adds == 1)
+  await client.setStatus(.denied)
+  let denied = await NotificationReconciler(store: reopened, client: client).reconcileSystemNotifications(now: now)
+  #expect(denied.isPending)
+  #expect(denied.authorization == .denied)
+  #expect(try reopened.captureDueNotices(now: now).activeCount == 1)
+  #expect(try reopened.list().count == 2)
+}
+
+@Test func recoveryMixedPlanningEntryPointsShareOneFlight() async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let store = try ReminderStore(databaseURL: directory.appendingPathComponent("state.sqlite"))
+  let now = Date(timeIntervalSince1970: 1_800_000_000)
+  let reminder = try Reminder(title: "Month", dueAt: now.addingTimeInterval(30 * 86400), timeZoneID: "UTC", createdAt: now, updatedAt: now)
+  try store.save(reminder, expectedRevision: nil)
+  let client = FakeNotifications()
+  let reconciler = NotificationReconciler(store: store, client: client)
+  let results = await withTaskGroup(of: ReconciliationResult.self) { group in
+    for index in 0..<32 {
+      group.addTask {
+        if index.isMultiple(of: 2) { return await reconciler.reconcileSystemNotifications(now: now) }
+        return await reconciler.reconcile(now: now, horizon: now.addingTimeInterval(40 * 86400))
+      }
+    }
+    var values: [ReconciliationResult] = []
+    for await value in group { values.append(value) }
+    return values
+  }
+  #expect(results.count == 32)
+  #expect(results.allSatisfy { !$0.isPending && $0.scheduledCount == 1 })
+  #expect(await client.maximumActiveAdds == 1)
+  #expect(await client.adds == 1)
+}
+
+@Test func recoveryPolicyEditDuringAddRemovesOldRequestAndUsesDeferredPlan() async throws {
+  let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let store = try ReminderStore(databaseURL: directory.appendingPathComponent("state.sqlite"))
+  let now = Date(timeIntervalSince1970: 1_800_000_000) // 08:00 UTC
+  let reminder = try Reminder(title: "Quiet", dueAt: now.addingTimeInterval(60), timeZoneID: "UTC", createdAt: now, updatedAt: now)
+  try store.save(reminder, expectedRevision: nil)
+  let client = FakeNotifications()
+  await client.pauseAdd()
+  let reconciler = NotificationReconciler(store: store, client: client)
+  let task = Task { await reconciler.reconcileSystemNotifications(now: now) }
+  await client.waitForPausedAdd()
+  let quiet = try QuietHours(startHour: 8, startMinute: 0, endHour: 9, endMinute: 0, timeZoneID: "UTC")
+  try store.saveNotificationPolicy(NotificationPolicy(quietHours: quiet), expectedRevision: 1)
+  await client.releaseAdd()
+  let result = await task.value
+  #expect(!result.isPending)
+  #expect(result.generation == 2)
+  let pending = try await client.pending()
+  #expect(pending.count == 1)
+  #expect(pending.first?.fireAt == quiet.nextAllowedDate(for: reminder.dueAt))
+  #expect(try store.list().first?.dueAt == reminder.dueAt)
+}
