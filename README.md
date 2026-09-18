@@ -2,7 +2,7 @@
 
 A native macOS, local-first assistant for reminders, reusable prompts, and bounded parallel work. Calm interface, explicit permissions, verified results.
 
-**Status: working native reminder and activation prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and native platform adapters. It has no runtime generative language model, cloud backend, shell agent, or Jcode dependency. Optional name detection uses Apple's on-device speech recognizer, never a hosted assistant.
+**Status: working native reminder and activation prototype, not the complete MVP or an App Store release.** The local application stack uses SwiftUI, deterministic Swift domain logic, system SQLite, and native platform adapters. It has no conversational language model, application-owned cloud backend, shell agent, or Jcode dependency. Optional name detection uses Apple's on-device speech recognizer, never a hosted assistant.
 
 At the latest independently verified activation checkpoint, the full Swift Testing suite passed (**190 reported, with two opt-in profiling tests skipped**), as did release bundling/signature checks. The installed app passed two-display preview, focus preservation, theme persistence, and microphone-off restart checks. Physical clap/name recognition remains untested. See the [activation and installation evidence](docs/verification/2026-09-18-local-activation.md). The previous reliability checkpoint also passed 400 repeated concurrent-startup scenarios, and separate release profiling passed both opt-in tests. Earlier isolated native demonstrations exercised creation, Quit/relaunch, exact ten-minute snooze, delete confirmation, notice dismissal, and persisted quiet hours. Actual notification delivery and release sandbox/signing remain unverified. See the [native evidence](docs/verification/2026-09-17-reminders-slice.md) and [latest reliability checks and limitations](docs/verification/2026-09-18-improvement-batch.md).
 
@@ -15,6 +15,7 @@ At the latest independently verified activation checkpoint, the full Swift Testi
 - One-use, expiring delete confirmation bound to the reviewed reminder.
 - Explicit notification opt-in, generic notification previews, and separate saved/pending/scheduled status. Scheduled never means observed delivery.
 - Opt-in clap or “Argus” detection, brief click-through screen-edge feedback, and a menu-bar microphone/stop control.
+- Opt-in ElevenLabs speech output with an explicit text-transmission toggle, secure credential entry, and no system-voice fallback.
 - Original green guardian app icon and locally saved custom accent/glow colors.
 
 Persisted quiet-hours settings, notice history with independent dismissal, and bounded missed-alert recovery are implemented. Recovered notices record due times, not proof of notification delivery. One-time notifications are planned beyond the recurring seven-day window.
@@ -73,7 +74,7 @@ The briefing wording currently creates a reminder, not an AI worker. Unsupported
 
 ## Privacy and current limits
 
-Reminder storage is local **plaintext SQLite**, not encrypted. Visible notification text is generic, but local macOS notification metadata includes the reminder title for reconciliation. No API keys or network integration are used by this slice. Actual OS banner delivery, permission/Focus behavior, sleep/wake, and release sandbox confinement have not yet been verified. Recurring scheduling currently uses a rolling window, so do not treat this prototype as your sole source of critical alerts.
+Reminder storage is local **plaintext SQLite**, not encrypted. Visible notification text is generic, but local macOS notification metadata includes the reminder title for reconciliation. Reminder scheduling and on-device activation do not require a cloud API key or upload their data. Optional ElevenLabs speech is different: it uses a key from the login Keychain and sends short response text over HTTPS only after explicit consent. Provider credits may be consumed. Microphone audio and recognition transcripts are not included in those requests. Actual OS banner delivery, permission/Focus behavior, sleep/wake, and release sandbox confinement have not yet been verified. Recurring scheduling currently uses a rolling window, so do not treat this prototype as your sole source of critical alerts.
 
 Closing the window leaves the app process running. Explicit Quit stops ARGUS computation, although previously registered system notifications can remain. Launch-at-login registration is opt-in; no after-Quit listening helper is installed. There is no hard-real-time delivery promise across sleep, shutdown, Focus, or permission denial.
 
@@ -82,9 +83,8 @@ Closing the window leaves the app process running. Explicit Quit stops ARGUS com
 - Versioned prompt library with tags, search, variables, and queued preparations.
 - Up to three isolated hands: prepare a prompt, search the library, and assemble a deadline briefing.
 - Visible results/activity, consequential-action approval, durable state, and Stop All.
-- Optional replaceable voice output. ElevenLabs remains disabled until a credential is supplied securely and the user explicitly enables it with disclosure.
 
-These capabilities are not implemented by the reminder prototype. Calendar integration follows the core MVP.
+These complete workflows are not implemented by the reminder prototype. Optional voice output is implemented separately, but remains unavailable until a key is configured and transmission consent is enabled. Calendar integration follows the core MVP.
 
 ## Design and release gates
 
