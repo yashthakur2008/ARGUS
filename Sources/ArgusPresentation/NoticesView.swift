@@ -119,6 +119,7 @@ private struct NoticeSnoozeEditor: View {
   @State var until: Date
   @State var occurrence: Date?
   @State private var error: String?
+  @State private var isSubmitting = false
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -131,23 +132,28 @@ private struct NoticeSnoozeEditor: View {
           Text(date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened,
             timeZone: TimeZone(identifier: source.timeZoneID) ?? .current))).tag(Optional(date))
         }
-      }.accessibilityLabel("Exact source occurrence to snooze")
+      }.accessibilityLabel("Exact source occurrence to snooze").disabled(isSubmitting)
       DatePicker("Remind me at", selection: $until, displayedComponents: [.date, .hourAndMinute])
         .environment(\.timeZone, TimeZone(identifier: source.timeZoneID) ?? .current)
+        .disabled(isSubmitting)
       Text(source.timeZoneID).font(.caption).foregroundStyle(.secondary)
       Text("The source deadline stays unchanged. Only this notice is dismissed. Other notices remain independently dismissible.")
         .font(.callout).foregroundStyle(.secondary)
       if let error { Text(error).font(.callout).foregroundStyle(.red) }
       HStack {
-        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(isSubmitting)
         Spacer()
         Button("Snooze selected occurrence") {
+          guard !isSubmitting, !model.isWorking, let submittedOccurrence = occurrence else { return }
+          isSubmitting = true
+          let submittedUntil = until
           Task {
-            if await model.snoozeNotice(notice, occurrenceAt: occurrence, until: until, expectedRevision: source.revision) { dismiss() }
+            defer { isSubmitting = false }
+            if await model.snoozeNotice(notice, occurrenceAt: submittedOccurrence, until: submittedUntil, expectedRevision: source.revision) { dismiss() }
             else { error = model.recovery.issue }
           }
-        }.keyboardShortcut(.defaultAction).disabled(occurrence == nil || model.isWorking)
+        }.keyboardShortcut(.defaultAction).disabled(occurrence == nil || model.isWorking || isSubmitting)
       }
-    }.padding(24).frame(width: 520)
+    }.padding(24).frame(width: 520).interactiveDismissDisabled(isSubmitting)
   }
 }

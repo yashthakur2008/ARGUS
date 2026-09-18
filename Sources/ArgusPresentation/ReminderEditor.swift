@@ -64,6 +64,7 @@ struct SnoozeEditor: View {
   let reminder: Reminder
   @State var until: Date
   @State private var validationError: String?
+  @State private var isSubmitting = false
   @Environment(\.dismiss) private var dismiss
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
@@ -71,20 +72,25 @@ struct SnoozeEditor: View {
       Text(reminder.title)
       DatePicker("Remind me at", selection: $until, displayedComponents: [.date, .hourAndMinute])
         .environment(\.timeZone, TimeZone(identifier: reminder.timeZoneID) ?? .current)
+        .disabled(isSubmitting)
       Text(reminder.timeZoneID).font(.caption).foregroundStyle(.secondary)
       Text("Your original deadline stays unchanged.").font(.caption).foregroundStyle(.secondary)
       if let validationError { Text(validationError).foregroundStyle(.red).font(.callout) }
       HStack {
-        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(isSubmitting)
         Spacer()
         Button("Snooze") {
+          guard !isSubmitting, !model.isWorking, until > model.referenceDate else { return }
+          isSubmitting = true
+          let submittedUntil = until
           Task {
-            if await model.snooze(reminder, until: until) { dismiss() }
+            defer { isSubmitting = false }
+            if await model.snooze(reminder, until: submittedUntil) { dismiss() }
             else { validationError = model.message ?? "Could not snooze. Please review the reminder and try again." }
           }
         }
-          .keyboardShortcut(.defaultAction).disabled(until <= model.referenceDate || model.isWorking)
+          .keyboardShortcut(.defaultAction).disabled(until <= model.referenceDate || model.isWorking || isSubmitting)
       }
-    }.padding(24).frame(width: 430)
+    }.padding(24).frame(width: 430).interactiveDismissDisabled(isSubmitting)
   }
 }

@@ -6,6 +6,7 @@ struct QuietHoursEditor: View {
   @State var draft: NotificationPolicyDraft
   @State private var error: String?
   @State private var isReloading = false
+  @State private var isSubmitting = false
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
@@ -25,12 +26,12 @@ struct QuietHoursEditor: View {
         Toggle("Bypass ARGUS quiet hours", isOn: $draft.bypass)
         Text("This explicit override affects ARGUS only. It does not bypass macOS Focus, permission denial or system notification settings.")
           .font(.caption).foregroundStyle(.secondary)
-      }.formStyle(.grouped).disabled(isReloading)
+      }.formStyle(.grouped).disabled(isReloading || isSubmitting)
       if let error { Text(error).font(.callout).foregroundStyle(.red) }
       HStack {
-        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction).disabled(isSubmitting)
         Button("Reload current settings") {
-          guard !isReloading else { return }
+          guard !isReloading, !isSubmitting, !model.isWorking else { return }
           isReloading = true
           Task {
             defer { isReloading = false }
@@ -44,18 +45,22 @@ struct QuietHoursEditor: View {
               error = "Another update interrupted this reload. Your changes were kept. Try again."
             }
           }
-        }.disabled(model.isWorking || isReloading)
+        }.disabled(model.isWorking || isReloading || isSubmitting)
         Spacer()
         Button("Save") {
+          guard !isSubmitting, !isReloading, !model.isWorking else { return }
+          isSubmitting = true
+          let submittedDraft = draft
           Task {
+            defer { isSubmitting = false }
             do {
-              if await model.saveNotificationPolicy(try draft.policy(), expectedRevision: draft.revision) { dismiss() }
+              if await model.saveNotificationPolicy(try submittedDraft.policy(), expectedRevision: submittedDraft.revision) { dismiss() }
               else { error = model.recovery.issue }
             } catch { self.error = "Check the quiet-hours values: \(error)" }
           }
-        }.keyboardShortcut(.defaultAction).disabled(model.isWorking || isReloading)
+        }.keyboardShortcut(.defaultAction).disabled(model.isWorking || isReloading || isSubmitting)
       }
-    }.padding(24).frame(width: 560)
+    }.padding(24).frame(width: 560).interactiveDismissDisabled(isSubmitting)
   }
 
   private func clockFields(_ title: String, hour: Binding<Int>, minute: Binding<Int>) -> some View {
