@@ -5,8 +5,12 @@ import ArgusStore
 struct NoticesView: View {
   var model: AppModel
   @State private var showHistory = false
-  @State private var editor: NoticeEditorSession?
-  @State private var snooze: NoticeSnoozeSession?
+  @State private var sourceRequest: NoticeSourceRequest
+
+  init(model: AppModel) {
+    self.model = model
+    _sourceRequest = State(initialValue: NoticeSourceRequest(lookup: model.recovery.lookupSource))
+  }
 
   private var shownNotices: [ReminderNotice] {
     showHistory ? model.recovery.notices : model.recovery.activeNotices
@@ -20,15 +24,25 @@ struct NoticesView: View {
       Text("Notices").font(.system(size: 32, weight: .semibold, design: .rounded))
       Text("Due reminders, not delivery receipts. Recurring catch-up covers the last seven days. One-time overdue alerts remain available.")
         .font(.callout).foregroundStyle(.secondary)
-      Picker("Notice filter", selection: $showHistory) {
+      Picker("Notice filter", selection: Binding(get: { showHistory }, set: {
+        sourceRequest.invalidatePending()
+        showHistory = $0
+      })) {
         Text("Needs attention").tag(false)
         Text("History · all notices").tag(true)
       }.pickerStyle(.segmented)
       if let issue = noticeIssue {
         Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
       }
+      if let issue = sourceRequest.issue {
+        Label(issue, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+      }
+      if sourceRequest.isLoading { ProgressView("Loading reminder…") }
       if model.noticesUnavailableMessage != nil {
-        Button("Retry loading notices") { Task { await model.refresh() } }
+        Button("Retry loading notices") {
+          sourceRequest.invalidatePending()
+          Task { await model.refresh() }
+        }
           .disabled(model.isWorking || model.isReconciling)
       }
       if shownNotices.isEmpty {
@@ -44,14 +58,21 @@ struct NoticesView: View {
         .font(.caption).foregroundStyle(.secondary)
     }.padding(30)
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .sheet(item: $editor) { session in
-        ReminderEditor(model: model, draft: session.draft,
-          context: "This notice remains in history and needs separate dismissal, even if you reschedule its source.")
-      }
-      .sheet(item: $snooze) { session in
-        NoticeSnoozeEditor(model: model, notice: session.notice, source: session.source,
-          until: model.referenceDate.addingTimeInterval(600),
-          occurrence: session.notice.occurrenceDates.count == 1 ? session.notice.occurrenceDates.first : nil)
+      .onAppear { sourceRequest.activate() }
+      .onDisappear { sourceRequest.deactivate() }
+      .onChange(of: model.recovery.notices) { sourceRequest.invalidatePending() }
+      .onChange(of: model.reminders) { sourceRequest.invalidatePending() }
+      .sheet(item: $sourceRequest.destination) { session in
+        switch session.action {
+        case .edit:
+          ReminderEditor(model: model, draft: ReminderDraft(original: session.source,
+            now: model.referenceDate, timeZone: .current),
+            context: "This notice remains in history and needs separate dismissal, even if you reschedule its source.")
+        case .snooze:
+          NoticeSnoozeEditor(model: model, notice: session.notice, source: session.source,
+            until: model.referenceDate.addingTimeInterval(600),
+            occurrence: session.notice.occurrenceDates.count == 1 ? session.notice.occurrenceDates.first : nil)
+        }
       }
   }
 
@@ -69,31 +90,27 @@ struct NoticesView: View {
           .font(.caption).foregroundStyle(.secondary)
       }
       HStack {
-        Button("Open") { editSource(notice) }
-        Button("Reschedule…") { editSource(notice) }
+        Button("Open") { openSource(notice, action: .edit) }.disabled(sourceRequest.isLoading)
+        Button("Reschedule…") { openSource(notice, action: .edit) }.disabled(sourceRequest.isLoading)
         if notice.dismissedAt == nil {
           Button("Snooze…") {
-            if let source = model.recovery.open(notice) {
-              snooze = NoticeSnoozeSession(notice: notice, source: source)
-            }
-          }
+            openSource(notice, action: .snooze)
+          }.disabled(sourceRequest.isLoading)
           Spacer()
-          Button("Dismiss") { Task { await model.dismissNotice(notice) } }
+          Button("Dismiss") {
+            sourceRequest.invalidatePending()
+            Task { await model.dismissNotice(notice) }
+          }
         }
       }.disabled(model.isWorking)
     }.padding(16).background(.background, in: RoundedRectangle(cornerRadius: 10))
       .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary))
   }
 
-  private func editSource(_ notice: ReminderNotice) {
-    if let source = model.recovery.open(notice) {
-      editor = NoticeEditorSession(draft: ReminderDraft(original: source, now: model.referenceDate, timeZone: .current))
-    }
+  private func openSource(_ notice: ReminderNotice, action: NoticeSourceAction) {
+    sourceRequest.start(notice: notice, action: action, currentVisibleNotices: { shownNotices })
   }
 }
-
-private struct NoticeEditorSession: Identifiable { let id = UUID(); let draft: ReminderDraft }
-private struct NoticeSnoozeSession: Identifiable { let id = UUID(); let notice: ReminderNotice; let source: Reminder }
 
 private struct NoticeSnoozeEditor: View {
   var model: AppModel

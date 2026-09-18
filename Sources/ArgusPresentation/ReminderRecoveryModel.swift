@@ -9,8 +9,21 @@ public final class ReminderRecoveryModel {
   public private(set) var policy: NotificationPolicy?
   public private(set) var issue: String?
   private let store: ReminderStore
+  private let sourceLookup: any NoticeSourceLookingUp
   @ObservationIgnored var onExplicitChange: (@MainActor () -> Void)?
-  public init(store: ReminderStore) { self.store = store }
+  public convenience init(store: ReminderStore) {
+    self.init(store: store, sourceLookup: NoticeSourceLookup(store: store))
+  }
+  init(store: ReminderStore, sourceLookup: any NoticeSourceLookingUp) {
+    self.store = store
+    self.sourceLookup = sourceLookup
+  }
+
+  /// A sampled request result, never a write to shared recovery issue state.
+  /// Existing synchronous open remains available for API compatibility.
+  public func lookupSource(_ notice: ReminderNotice) async -> NoticeSourceLookupResult {
+    await sourceLookup.lookup(notice)
+  }
   public var activeNotices: [ReminderNotice] { notices.filter { $0.dismissedAt == nil } }
   public var attentionCount: Int { Set(activeNotices.map(\.reminderID)).count }
   public func refresh(now: Date) throws {
