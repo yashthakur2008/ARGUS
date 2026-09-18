@@ -5,11 +5,13 @@ struct ReminderEditor: View {
   var model: AppModel
   @Environment(\.dismiss) private var dismiss
   @State var draft: ReminderDraft
+  var context: String? = nil
   @State private var validationError: String?
 
   var body: some View {
     VStack(alignment: .leading, spacing: 20) {
       Text(draft.original == nil ? "New reminder" : "Edit reminder").font(.title2.weight(.semibold))
+      if let context { Text(context).font(.callout).foregroundStyle(.secondary) }
       Form {
         TextField("Title", text: $draft.title).accessibilityLabel("Reminder title")
         DatePicker("Date & time", selection: $draft.dueAt, displayedComponents: [.date, .hourAndMinute])
