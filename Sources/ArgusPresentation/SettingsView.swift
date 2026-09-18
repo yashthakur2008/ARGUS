@@ -16,6 +16,11 @@ public struct SettingsView: View {
         } else if model.result?.authorization == .denied {
           Text("Permission is denied. You can change ARGUS notification permission in System Settings, then refresh here.")
         }
+        if let error = model.result?.error {
+          DisclosureGroup("Scheduling details") {
+            Text(error).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+          }
+        }
         Button("Refresh notification status") { Task { await model.refresh() } }
         Text("Notification previews use generic text. Reminder content stays in local storage and notification metadata.")
           .font(.caption).foregroundStyle(.secondary)
