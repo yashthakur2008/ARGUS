@@ -32,6 +32,9 @@ jobs:
           xcodebuild -version
           xcrun swift --version
           echo "ARGUS_SWIFT=$(xcrun --find swift)" >> "$GITHUB_ENV"
+      - name: Verify packaging fixture path portability
+        shell: bash
+        run: bash scripts/test-packaging-paths.sh
       - name: Test and verify development bundle
         shell: bash
         run: bash scripts/verify.sh

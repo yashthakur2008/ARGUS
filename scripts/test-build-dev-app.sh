@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${JCODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/argus-packaging-tests.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# The packager resolves its root with cd/pwd. Match that path spelling before
+# comparing mv arguments, even when TMPDIR has a trailing slash or symlink.
+WORK="$(cd "$WORK" && pwd -P)"
 failures=0
 
 make_fixture() {
@@ -13,7 +16,7 @@ make_fixture() {
     "$CASE/build/ARGUS.app/Contents/MacOS" "$CASE/build/ARGUS.app/Contents/Resources"
   cp "$ROOT/scripts/build-dev-app.sh" "$CASE/scripts/build-dev-app.sh"
   for tool in codesign plutil otool install_name_tool; do
-    sed "s|/usr/bin/$tool|$CASE/bin/$tool|g" "$CASE/scripts/build-dev-app.sh" > "$CASE/script.next"
+    sed "s|/usr/bin/$tool|\"\$FIXTURE/bin/$tool\"|g" "$CASE/scripts/build-dev-app.sh" > "$CASE/script.next"
     mv "$CASE/script.next" "$CASE/scripts/build-dev-app.sh"
   done
   printf 'new synthetic executable\n' > "$CASE/products/ARGUS"

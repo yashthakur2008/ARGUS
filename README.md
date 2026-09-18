@@ -53,7 +53,7 @@ open build/ARGUS.app
 
 `verify.sh` runs the tests, creates a release-mode development app, verifies its ad-hoc signature/plist, and rejects private build-machine runtime library/search paths. It does not install, launch, notarize, or publish the app. For bundling alone, use `bash scripts/build-dev-app.sh`.
 
-GitHub Actions runs the same script on a clean `macos-15` runner with Xcode 16.4 selected explicitly, for pull requests and pushes to `main` or `feat/**`. The workflow has read-only repository permission, does not persist checkout credentials, and uses no signing secrets. A passing run verifies a development bundle, not notification delivery or App Store eligibility. Runner images can change independently of the selected Xcode version.
+GitHub Actions first runs `bash scripts/test-packaging-paths.sh`, which exercises the synthetic packaging suite with trailing-slash, whitespace, and symlink temporary directories without real compilation or signing. It then runs the same verification script on a clean `macos-15` runner with Xcode 16.4 selected explicitly, for pull requests and pushes to `main` or `feat/**`. The workflow has read-only repository permission, does not persist checkout credentials, and uses no signing secrets. A passing run verifies a development bundle, not notification delivery or App Store eligibility. Runner images can change independently of the selected Xcode version.
 
 The development machine's installed Command Line Tools are inconsistent. A verified official Swift 6.1.2 package was extracted into scratch without changing system tools. Its exact development-only path and verification history are in the [evidence record](docs/verification/2026-09-17-reminders-slice.md). A clean Xcode release build is still required.
 
