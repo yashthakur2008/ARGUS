@@ -2,7 +2,7 @@ import Foundation
 
 public enum ScheduleCalculator {
   /// Plans strictly after now, up to and including horizon. Quiet hours never alter dueAt.
-  /// A snooze replaces the anchored occurrence (dueAt), not later recurring occurrences.
+  /// A snooze replaces its persisted occurrence, never changing the source deadline.
   /// bypassQuietHours is explicit app policy, never a request to bypass OS Focus.
   public static func notifications(
     for reminder: Reminder, now: Date, horizon: Date,
@@ -28,10 +28,16 @@ public enum ScheduleCalculator {
     }
 
     if let snooze = reminder.snoozedUntil { try include(snooze) }
+    // Legacy records without a target retain their original anchor semantics, never infer
+    // an identity from updatedAt (which can change on rename) or the moving planning clock.
+    let snoozedOccurrence =
+      reminder.snoozedUntil == nil ? nil : reminder.snoozedOccurrenceAt ?? reminder.dueAt
     let offsets = try normalizedOffsets(reminder.alertOffsets)
     let searchStart = bypassQuietHours ? now : quietHours?.candidateSearchStart(for: now) ?? now
     for offset in offsets {
-      if reminder.snoozedUntil == nil { try include(reminder.dueAt.addingTimeInterval(-offset)) }
+      if snoozedOccurrence != reminder.dueAt {
+        try include(reminder.dueAt.addingTimeInterval(-offset))
+      }
       guard let rule = reminder.recurrence else { continue }
       // Search each offset separately, avoiding iteration across years of past occurrences.
       let after = max(reminder.dueAt, searchStart.addingTimeInterval(offset))
@@ -40,7 +46,7 @@ public enum ScheduleCalculator {
       try validateDate(lastDue)
       var occurrence = try rule.nextOccurrence(after: after, timeZone: zone)
       while occurrence <= lastDue {
-        try include(occurrence.addingTimeInterval(-offset))
+        if occurrence != snoozedOccurrence { try include(occurrence.addingTimeInterval(-offset)) }
         let next = try rule.nextOccurrence(after: occurrence, timeZone: zone)
         guard next > occurrence else { throw CoreError.invalidRecurrence }
         occurrence = next

@@ -7,6 +7,7 @@ public enum CoreError: Error, Equatable, Sendable {
   case invalidOffsets
   case invalidRecurrence
   case invalidRevision
+  case invalidSnooze
   case unsupportedCommand
   case invalidDuration
   case invalidQuietHours
@@ -34,15 +35,27 @@ public enum RecurrenceRule: Codable, Equatable, Sendable {
     calendar.timeZone = timeZone
     switch self {
     case let .weekdays(hour, minute):
-      let candidates = (2...6).compactMap { weekday in
-        calendar.nextDate(
-          after: date,
-          matching: DateComponents(hour: hour, minute: minute, second: 0, weekday: weekday),
-          matchingPolicy: .nextTime, repeatedTimePolicy: .first)
+      var day = calendar.startOfDay(for: date)
+      // Resolve from before each local day, independently of the caller's position in a fold.
+      // Foundation's .first alone can return the second instant when searching between them.
+      for _ in 0..<8 {
+        let weekday = calendar.component(.weekday, from: day)
+        if (2...6).contains(weekday),
+          let candidate = calendar.nextDate(
+            after: day.addingTimeInterval(-1),
+            matching: DateComponents(hour: hour, minute: minute, second: 0),
+            matchingPolicy: .nextTime, repeatedTimePolicy: .first),
+          calendar.isDate(candidate, inSameDayAs: day), candidate > date
+        {
+          try validateDate(candidate)
+          return candidate
+        }
+        guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else {
+          throw CoreError.invalidDate
+        }
+        day = nextDay
       }
-      guard let next = candidates.min() else { throw CoreError.invalidDate }
-      try validateDate(next)
-      return next
+      throw CoreError.invalidDate
     }
   }
 }
@@ -58,13 +71,14 @@ public struct Reminder: Codable, Equatable, Sendable {
   public var alertOffsets: [TimeInterval]
   public var recurrence: RecurrenceRule?
   public var snoozedUntil: Date?
+  public var snoozedOccurrenceAt: Date?
   public var isCompleted: Bool
 
   public init(
     id: UUID = UUID(), title: String, dueAt: Date, timeZoneID: String,
     createdAt: Date, updatedAt: Date, revision: Int64 = 1,
     alertOffsets: [TimeInterval] = [0], recurrence: RecurrenceRule? = nil,
-    snoozedUntil: Date? = nil, isCompleted: Bool = false
+    snoozedUntil: Date? = nil, snoozedOccurrenceAt: Date? = nil, isCompleted: Bool = false
   ) throws {
     self.id = id
     self.title = try validatedTitle(title)
@@ -76,6 +90,7 @@ public struct Reminder: Codable, Equatable, Sendable {
     self.alertOffsets = try normalizedOffsets(alertOffsets)
     self.recurrence = recurrence
     self.snoozedUntil = snoozedUntil
+    self.snoozedOccurrenceAt = snoozedOccurrenceAt
     self.isCompleted = isCompleted
     try validate()
   }
@@ -93,6 +108,7 @@ public struct Reminder: Codable, Equatable, Sendable {
       alertOffsets: values.decode([TimeInterval].self, forKey: .alertOffsets),
       recurrence: values.decodeIfPresent(RecurrenceRule.self, forKey: .recurrence),
       snoozedUntil: values.decodeIfPresent(Date.self, forKey: .snoozedUntil),
+      snoozedOccurrenceAt: values.decodeIfPresent(Date.self, forKey: .snoozedOccurrenceAt),
       isCompleted: values.decode(Bool.self, forKey: .isCompleted)
     )
   }
@@ -105,7 +121,34 @@ public struct Reminder: Codable, Equatable, Sendable {
     if let snoozedUntil { try validateDate(snoozedUntil) }
     _ = try normalizedOffsets(alertOffsets)
     try recurrence?.validate()
+    if let target = snoozedOccurrenceAt {
+      try validateDate(target)
+      guard snoozedUntil != nil, target >= dueAt else { throw CoreError.invalidSnooze }
+      if target != dueAt {
+        guard let recurrence,
+          try recurrence.nextOccurrence(
+            after: target.addingTimeInterval(-1), timeZone: validatedZone(timeZoneID)) == target
+        else { throw CoreError.invalidSnooze }
+      }
+    }
     guard revision > 0 else { throw CoreError.invalidRevision }
+  }
+
+  /// Select once when applying a snooze, then persist the returned occurrence identity.
+  /// Uses today's local occurrence (upcoming or overdue), or the next weekday if none today.
+  /// An active snooze keeps its explicit target across repeated snoozes and unrelated edits.
+  public func occurrenceToSnooze(at now: Date) throws -> Date {
+    try validate()
+    try validateDate(now)
+    if let snoozedUntil, snoozedUntil > now { return snoozedOccurrenceAt ?? dueAt }
+    guard let recurrence, dueAt < now else { return dueAt }
+    let zone = try validatedZone(timeZoneID)
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    return max(
+      dueAt,
+      try recurrence.nextOccurrence(
+        after: calendar.startOfDay(for: now).addingTimeInterval(-1), timeZone: zone))
   }
 }
 

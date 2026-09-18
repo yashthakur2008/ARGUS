@@ -78,7 +78,7 @@ public enum CommandParser {
           let value = captures(
             #"([0-9]+)(m|h|d)"#, String(token).trimmingCharacters(in: .whitespaces))
         else { throw CoreError.invalidOffsets }
-        return try duration(value[0], unit: value[1])
+        return try duration(value[0], unit: value[1], allowZero: true)
       }
       return .setAlerts(id: id, offsets: try normalizedOffsets(offsets))
     }
@@ -96,8 +96,12 @@ public enum CommandParser {
     }
   }
 
-  private static func duration(_ amount: String, unit: String) throws -> TimeInterval {
-    guard let integer = UInt64(amount), integer > 0 else { throw CoreError.invalidDuration }
+  private static func duration(_ amount: String, unit: String, allowZero: Bool = false) throws
+    -> TimeInterval
+  {
+    guard let integer = UInt64(amount), allowZero || integer > 0 else {
+      throw CoreError.invalidDuration
+    }
     let multiplier: UInt64
     switch unit.lowercased() {
     case "m", "minute", "minutes": multiplier = 60

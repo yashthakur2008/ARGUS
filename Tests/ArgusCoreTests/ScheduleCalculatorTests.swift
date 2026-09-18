@@ -99,7 +99,7 @@ struct ScheduleCalculatorTests {
 }
 
 extension ScheduleCalculatorTests {
-  @Test func testRecurringSnoozeOnlyReplacesAnchoredOccurrence() throws {
+  @Test func testLegacyRecurringSnoozeTargetsOriginalAnchor() throws {
     var item = try reminder("2026-09-21T15:30:00Z", recurrence: .weekdays(hour: 8, minute: 30))
     item.snoozedUntil = date("2026-09-21T16:00:00Z")
     let result = try ScheduleCalculator.notifications(
@@ -161,5 +161,62 @@ extension ScheduleCalculatorTests {
       try ScheduleCalculator.notifications(
         for: item, now: now, horizon: date("2026-12-18T16:30:00Z"))
     }
+  }
+}
+
+extension ScheduleCalculatorTests {
+  @Test func testRestartBetweenFoldInstantsNeverPlansSecondOccurrence() throws {
+    let item = try reminder(
+      "2026-10-28T20:30:00Z", recurrence: .weekdays(hour: 23, minute: 30), zone: "Africa/Cairo")
+    let now = date("2026-10-29T20:45:00Z")
+    #expect(
+      try ScheduleCalculator.notifications(
+        for: item, now: now, horizon: date("2026-10-29T22:00:00Z")
+      ).isEmpty)
+    #expect(
+      try item.recurrence!.nextOccurrence(
+        after: now, timeZone: TimeZone(identifier: "Africa/Cairo")!) == date("2026-10-30T21:30:00Z")
+    )
+  }
+}
+
+extension ScheduleCalculatorTests {
+  @Test func testLaterRecurringSnoozeSurvivesDecodeRenameAndReplanning() throws {
+    var item = try reminder(
+      "2026-09-18T08:30:00Z", offsets: [0, 3600], recurrence: .weekdays(hour: 8, minute: 30),
+      zone: "UTC")
+    item.snoozedUntil = date("2026-09-21T09:00:00Z")
+    // Persist the explicit occurrence identity, not the mutable record update timestamp.
+    var payload =
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(item)) as! [String: Any]
+    payload["snoozedOccurrenceAt"] = date("2026-09-21T08:30:00Z").timeIntervalSinceReferenceDate
+    var restored = try JSONDecoder().decode(
+      Reminder.self, from: JSONSerialization.data(withJSONObject: payload))
+    restored.title = "Renamed after snooze"
+    restored.updatedAt = date("2026-09-21T06:50:00Z")
+    let deadline = restored.dueAt
+    let horizon = date("2026-09-22T09:00:00Z")
+    let expected = [
+      date("2026-09-21T09:00:00Z"), date("2026-09-22T07:30:00Z"), date("2026-09-22T08:30:00Z"),
+    ]
+    #expect(
+      try ScheduleCalculator.notifications(
+        for: restored, now: date("2026-09-21T07:00:00Z"), horizon: horizon
+      ).map(\.fireAt) == expected)
+    #expect(
+      try ScheduleCalculator.notifications(
+        for: restored, now: date("2026-09-21T08:00:00Z"), horizon: horizon
+      ).map(\.fireAt) == expected)
+    restored.updatedAt = date("2026-09-22T06:00:00Z")
+    #expect(
+      try ScheduleCalculator.notifications(
+        for: restored, now: date("2026-09-22T06:00:00Z"), horizon: horizon
+      ).map(\.fireAt) == Array(expected.dropFirst()))
+    #expect(restored.dueAt == deadline)
+    let saved =
+      try JSONSerialization.jsonObject(with: JSONEncoder().encode(restored)) as! [String: Any]
+    #expect(
+      saved["snoozedOccurrenceAt"] as? Double
+        == date("2026-09-21T08:30:00Z").timeIntervalSinceReferenceDate)
   }
 }
