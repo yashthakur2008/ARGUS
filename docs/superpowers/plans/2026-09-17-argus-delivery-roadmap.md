@@ -1,14 +1,14 @@
 # ARGUS phased delivery and verification plan
 
 Date: 2026-09-17
-Status: Proposed for approval. This is a release roadmap, not evidence that any feature exists.
+Status: Delivery reference under the user's approved direction and subsequent explicit continuation instruction. This is a release roadmap, not evidence that any feature exists. The concrete reminders-slice plan records the first-slice implementation ruling and file layout.
 Design: ../specs/2026-09-17-argus-native-macos-design.md
 
 ## Execution contract
 
 Use the requested swarm for independent tasks with explicit file ownership, but deliver the slices below in order. Do not build unrelated subsystems in parallel before their contracts exist. Every slice uses test-first or test-alongside development, an independently reviewed diff, scoped commits, and user-observable evidence. Development providers never become application dependencies.
 
-No live secrets, paid API requests, account changes, Apple enrollment, production publication, or App Store submission are authorized by this plan. The provided ElevenLabs voice ID is configuration only. No API key has been supplied. Application implementation begins after approval of the written design and roadmap.
+No live secrets, paid API requests, account changes, Apple enrollment, production publication, or App Store submission are authorized by this plan. The provided ElevenLabs voice ID is configuration only. No API key has been supplied. Reversible application implementation proceeds under the approved native direction and explicit continuation instruction, as recorded in the reminders-slice plan. Do not claim a separate written-spec review occurred.
 
 ## 0. Packaging and platform feasibility gate
 

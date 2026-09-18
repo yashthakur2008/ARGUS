@@ -1,7 +1,7 @@
 # ARGUS native macOS design
 
 Date: 2026-09-17
-Status: Draft for user review. Native platform, Swift/SwiftUI/SQLite direction, and the three initial workflows are approved. This written security/release specification and implementation sequence are not yet approved. No application implementation has started.
+Status: Implementation reference. Native platform, Swift/SwiftUI/SQLite direction, and the three initial workflows are approved. The user subsequently requested swarm completion and explicitly instructed continuation without waiting. Reversible first-slice implementation is proceeding under that direction, without claiming a separate line-by-line approval of this written spec. Account, credential, paid-service, destructive-action and publication gates remain unchanged. See the reminders-slice plan for the recorded continuation ruling and actual execution scope.
 
 ## Product contract
 
@@ -111,7 +111,7 @@ An App Store release requires a stable bundle identity, Apple developer membersh
 
 ## Implementation and approval gate
 
-Build one verifiable vertical slice at a time: reminders/notifications; prompt library; queue/worker runtime; multi-hand orchestration; voice; calendar adapter; reliability/privacy/release testing. Each slice has observable acceptance criteria, tests before or alongside implementation, a demonstration, a relevant diff, failure/restart evidence, a safety review, and a scoped commit.
+Build one verifiable vertical slice at a time: reminders/notifications; prompt library; queue/worker runtime; multi-hand orchestration; voice; calendar adapter; reliability/privacy/release testing. Each slice has observable acceptance criteria, tests before or alongside implementation, a demonstration, a relevant diff, failure/restart evidence, a safety review, and a scoped commit. Initial build layout is a single root Swift package with core/store/platform/app targets rather than a nested package plus Xcode project; this simplifies available-toolchain validation and does not replace the future Xcode distribution archive.
 
 The three parallel design reviewers own docs/research/macos-release.md, docs/research/security-recovery.md, and docs/research/native-experience.md. These are supporting analyses, not alternate authoritative specs. This consolidated document controls proposed defaults when recommendations differ: one-hour Now threshold, concurrency three, the six canonical hand states, explicit retry after interruption, and encrypted protected content. Manual ambiguous one-time dates require clarification; the explicit DST policy applies to saved recurrences. Both friendly reminder grammar and structured advanced commands are supported. No reported UI or security acceptance test has yet been executed against an application.
 
