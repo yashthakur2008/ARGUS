@@ -11,6 +11,19 @@ import Testing
     body(defaults)
   }
 
+  @Test func reduceMotionOverrideDefaultsOffAndPersistsIndependently() {
+    withDefaults { defaults in
+      let settings = AppearanceSettings(defaults: defaults)
+      #expect(!settings.reduceMotion)
+      settings.setReduceMotion(true)
+      #expect(settings.reduceMotion)
+      #expect(AppearanceSettings(defaults: defaults).reduceMotion)
+      #expect(settings.hexString == AppearanceSettings.presetGreen)
+      settings.setReduceMotion(false)
+      #expect(!AppearanceSettings(defaults: defaults).reduceMotion)
+    }
+  }
+
   @Test func defaultGreenAndReload() {
     withDefaults { defaults in
       let settings = AppearanceSettings(defaults: defaults)

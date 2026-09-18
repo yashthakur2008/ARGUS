@@ -8,10 +8,18 @@ public final class AppearanceSettings {
   public static let presetGreen = "#65C891"
   public static let preferenceKey = "argus.appearance.accentHex"
   public private(set) var hexString: String
+  public static let reduceMotionPreferenceKey = "argus.appearance.reduceMotion"
+  public private(set) var reduceMotion: Bool
+
+  public func setReduceMotion(_ value: Bool) {
+    reduceMotion = value
+    defaults.set(value, forKey: Self.reduceMotionPreferenceKey)
+  }
   private let defaults: UserDefaults
 
   public init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    reduceMotion = defaults.bool(forKey: Self.reduceMotionPreferenceKey)
     hexString = (defaults.object(forKey: Self.preferenceKey) as? String)
       .flatMap(Self.normalizedHex) ?? Self.presetGreen
   }

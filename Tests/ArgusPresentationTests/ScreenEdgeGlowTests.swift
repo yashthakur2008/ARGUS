@@ -25,7 +25,7 @@ struct ScreenEdgeGlowTests {
     }
   }
 
-  @Test func feedbackIsBriefAndAlwaysStaticIncludingReduceMotion() {
+  @Test func feedbackPreservesBriefPassiveWindowPolicy() {
     let policy = ScreenEdgeGlowPolicy()
     #expect(policy.duration > .zero)
     #expect(policy.duration <= .seconds(2))
@@ -60,5 +60,31 @@ struct ScreenEdgeGlowTests {
     let next = lifetime.begin()
     let nextEnded = lifetime.end(ifCurrent: next)
     #expect(nextEnded)
+  }
+}
+
+@MainActor struct ScreenEdgeGlowAnimationTests {
+  @Test func pulseIsFiniteAndRemovedByEitherMotionPreference() {
+    let view = ScreenEdgeGlowView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), color: .systemGreen)
+    view.applyMotion(systemReduced: false, overrideReduced: false, startPulse: true)
+    let pulse = view.layer?.animation(forKey: "activationPulse")
+    #expect(pulse != nil)
+    #expect(pulse?.duration == 0.9)
+    #expect(pulse?.repeatCount == 0)
+    #expect(pulse?.isRemovedOnCompletion == true)
+    view.applyMotion(systemReduced: true, overrideReduced: false, startPulse: false)
+    #expect(view.layer?.animationKeys()?.isEmpty != false)
+    view.applyMotion(systemReduced: false, overrideReduced: false, startPulse: false)
+    #expect(view.layer?.animationKeys()?.isEmpty != false)
+    view.applyMotion(systemReduced: false, overrideReduced: false, startPulse: true)
+    view.applyMotion(systemReduced: false, overrideReduced: true, startPulse: false)
+    #expect(view.layer?.animationKeys()?.isEmpty != false)
+  }
+  @Test func reducedMotionNeverStartsPulse() {
+    for flags in [(true, false), (false, true), (true, true)] {
+      let view = ScreenEdgeGlowView(frame: CGRect(x: 0, y: 0, width: 400, height: 300), color: .systemGreen)
+      view.applyMotion(systemReduced: flags.0, overrideReduced: flags.1, startPulse: true)
+      #expect(view.layer?.animationKeys()?.isEmpty != false)
+    }
   }
 }
