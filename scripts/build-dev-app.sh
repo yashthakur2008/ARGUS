@@ -8,6 +8,8 @@ SWIFT="${ARGUS_SWIFT:-swift}"
 BIN_DIR="$("$SWIFT" build -c release --show-bin-path)"
 APP="$ROOT/build/ARGUS.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+bash "$ROOT/scripts/build-icon.sh"
+cp "$ROOT/build/ARGUS.icns" "$APP/Contents/Resources/ARGUS.icns"
 # Replace the executable inode, never truncate a potentially running mapped binary.
 STAGED_EXECUTABLE="$(mktemp "$APP/Contents/MacOS/.ARGUS.XXXXXX")"
 trap 'if [[ -n "${STAGED_EXECUTABLE:-}" ]]; then rm -f "$STAGED_EXECUTABLE"; fi' EXIT

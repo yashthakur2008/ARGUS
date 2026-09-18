@@ -6,9 +6,12 @@
   <key>CFBundleExecutable</key><string>ARGUS</string>
   <key>CFBundleIdentifier</key><string>org.argus.local.development</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleIconFile</key><string>ARGUS.icns</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSPrincipalClass</key><string>NSApplication</string>
+  <key>NSMicrophoneUsageDescription</key><string>When you enable listening, ARGUS uses this Mac’s microphone to detect a clap or the name Argus and show a screen-edge glow. Audio is not saved by ARGUS. Stop listening at any time from the menu bar.</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>When you choose name activation, ARGUS uses on-device speech recognition to detect the word Argus. ARGUS requires offline recognition and does not fall back to server recognition or save transcripts.</string>
 </dict></plist>
