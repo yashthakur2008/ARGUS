@@ -2,6 +2,12 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.2 - 2026-09-19
+
+- Correct two timing-sensitive speech-timeout tests exposed by the first hosted DevOps PR run. Await the real completion callback through a buffered, cancellable AsyncStream instead of assuming a separate two-second polling deadline survives MainActor congestion.
+- Keep the actual production watchdog, cancellation implementation, all existing timeout/late-callback assertions, and live microphone feature unchanged. Add an explicit test time-limit cancellation policy and cleanup.
+- Preserve the failed hosted run and document the controlled actor-contention red/green experiment in [the iteration record](docs/verification/2026-09-19-stress-iteration.md). Passing stress repetitions did not erase the separately failing verification job.
+
 ## v0.1.1 - 2026-09-19
 
 - Add bounded repeated default-enabled suite testing in Debug and Release, with per-run logs, metadata, and summaries that CI attempts to retain after failures. Runner outages or job cancellation can prevent artifact upload.
