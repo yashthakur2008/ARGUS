@@ -31,6 +31,8 @@ See the [source privacy API inventory](2026-09-18-privacy-api-inventory.md) for 
 
 ## Release gates
 
+Use the [external acceptance checklist](acceptance-checklist.md) as the live gate tracker before claiming any native delivery, provider, signing, accessibility, upgrade, or MVP-complete behavior. The table below records the commercial-readiness rationale behind those gates.
+
 | Gate | Current evidence | Required before making the corresponding release claim |
 | --- | --- | --- |
 | Distribution identity | `org.argus.local.development`, ad-hoc signature, no TeamIdentifier in the inspected development bundle | Choose distribution channel, configure the user's authorized signing identity, build a clean archive, and validate the selected distribution path. Do not invent signing or notarization success. |
