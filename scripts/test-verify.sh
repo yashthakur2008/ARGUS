@@ -11,6 +11,7 @@ cp "$ROOT/scripts/verify.sh" "$WORK/scripts/verify.sh"
 for script in test-build-dev-app.sh test-verify.sh build-dev-app.sh; do
   printf '#!/bin/bash\nexit 0\n' > "$WORK/scripts/$script"
 done
+printf '#!/usr/bin/env python3\n' > "$WORK/scripts/check-hygiene.py"
 printf 'synthetic icon\n' > "$WORK/build/ARGUS.icns"
 cp "$WORK/build/ARGUS.icns" "$WORK/build/ARGUS.app/Contents/Resources/ARGUS.icns"
 printf 'synthetic plist\n' > "$WORK/build/ARGUS.app/Contents/Info.plist"

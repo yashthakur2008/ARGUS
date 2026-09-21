@@ -2,6 +2,10 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.6 - 2026-09-20
+
+- Add a fast repository hygiene check that requires no Swift compilation. It validates version/changelog consistency, Python syntax, shell syntax, trailing whitespace, and relative Markdown links, then runs from local and hosted verification before heavier Swift build steps.
+
 ## v0.1.5 - 2026-09-20
 
 - Add a native notification acceptance procedure for user-authorized manual verification of macOS permission prompts, banner/list observations, denied-permission handling, Focus behavior, sleep/wake, restart, and recurring-window limitations. Link it from the external acceptance checklist.

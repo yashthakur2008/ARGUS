@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 SWIFT="${ARGUS_SWIFT:-swift}"
 "$SWIFT" --version
+python3 scripts/check-hygiene.py
 bash scripts/test-build-dev-app.sh
 bash scripts/test-verify.sh
 TEST_LOG="$(mktemp "${TMPDIR:-/tmp}/argus-swift-test.XXXXXX")"

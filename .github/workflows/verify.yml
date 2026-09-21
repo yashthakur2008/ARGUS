@@ -32,6 +32,9 @@ jobs:
           xcodebuild -version
           xcrun swift --version
           echo "ARGUS_SWIFT=$(xcrun --find swift)" >> "$GITHUB_ENV"
+      - name: Check repository hygiene
+        shell: bash
+        run: python3 scripts/check-hygiene.py
       - name: Check versioned change notes
         shell: bash
         run: python3 scripts/check-version.py
