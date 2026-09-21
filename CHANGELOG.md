@@ -2,6 +2,10 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.4 - 2026-09-20
+
+- Add focused refresh-publication coverage for public recovery mutations. Dismissed notices and policy edits now have regression coverage proving their follow-up refresh wins over an older in-flight load and preserves coherent reminders, notices, policy, status, and message state.
+
 ## v0.1.3 - 2026-09-20
 
 - Improve local verification failure output when SwiftPM aborts from a mismatched Command Line Tools Swift/llbuild installation. The script now points contributors to an explicit Xcode or standalone Swift executable through `ARGUS_SWIFT`, and synthetic verifier tests cover that failure path.

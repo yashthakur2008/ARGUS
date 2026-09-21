@@ -101,6 +101,37 @@ import ArgusPlatform
     #expect(!f.model.isReconciling)
   }
 
+  @Test(arguments: ["dismiss", "policy"])
+  func publicRecoveryMutationRefreshWinsOverOlderLoad(action: String) async throws {
+    let f = try fixture()
+    defer { try? FileManager.default.removeItem(at: f.dir) }
+    try f.model.recovery.refresh(now: f.now)
+    let older = Task { await f.model.refreshOutcome() }
+    await f.gate.waitForLoads(1)
+    let mutation = Task { @MainActor in
+      switch action {
+      case "dismiss":
+        await f.model.dismissNotice(try #require(f.model.recovery.activeNotices.first))
+        return true
+      default:
+        let policy = try NotificationPolicy(bypassQuietHours: true)
+        return await f.model.saveNotificationPolicy(policy, expectedRevision: f.snapshot.policy.revision)
+      }
+    }
+    await f.gate.waitForLoads(2)
+    let current = try f.store.refreshSnapshot(now: f.now)
+    await f.gate.complete(1, with: loaded(current))
+    #expect(try await mutation.value)
+    await f.gate.complete(0, with: loaded(f.snapshot))
+    await older.value
+    #expect(f.model.reminders == current.reminders)
+    #expect(f.model.recovery.notices == current.notices)
+    #expect(f.model.recovery.policy == current.policy)
+    #expect(f.model.result != nil)
+    #expect(f.model.message == nil)
+    #expect(!f.model.isReconciling)
+  }
+
   @Test func capturedClockIsUsedForLoadAndReconciliation() async throws {
     let f = try fixture()
     defer { try? FileManager.default.removeItem(at: f.dir) }
