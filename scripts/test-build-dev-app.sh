@@ -21,6 +21,7 @@ make_fixture() {
   done
   printf 'new synthetic executable\n' > "$CASE/products/ARGUS"
   printf 'new synthetic plist\n' > "$CASE/Config/Info.plist"
+  printf '# Changelog\n\n## v9.9.9 - synthetic\n\n- Synthetic note.\n' > "$CASE/CHANGELOG.md"
   printf 'old synthetic executable\n' > "$CASE/build/ARGUS.app/Contents/MacOS/ARGUS"
   printf 'obsolete executable\n' > "$CASE/build/ARGUS.app/Contents/MacOS/obsolete-tool"
   printf 'obsolete resource\n' > "$CASE/build/ARGUS.app/Contents/Resources/obsolete.txt"
@@ -65,6 +66,8 @@ bundle="${!#}"
 cmp "$FIXTURE/products/ARGUS" "$bundle/Contents/MacOS/ARGUS"
 cmp "$FIXTURE/Config/Info.plist" "$bundle/Contents/Info.plist"
 cmp "$FIXTURE/build/ARGUS.icns" "$bundle/Contents/Resources/ARGUS.icns"
+cmp "$FIXTURE/CHANGELOG.md" "$bundle/Contents/Resources/CHANGELOG.md"
+grep -Eq '^[0-9a-f]{7,}|^unavailable$' "$bundle/Contents/Resources/ARGUSCommit.txt"
 if [[ -d "$FIXTURE/previous.app" ]]; then
   diff -r "$FIXTURE/previous.app" "$FIXTURE/build/ARGUS.app" >/dev/null
 fi

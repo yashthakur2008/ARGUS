@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ArgusPlatform
 import ArgusStore
 
@@ -31,6 +32,7 @@ public struct SettingsView: View {
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
+      AppUpdateSection(info: AppUpdateInfo())
       Section("Notifications") {
         Text(model.status)
         Text("Scheduled means macOS has a pending request, not that a banner was shown or seen. Focus, system settings, sleep and quitting ARGUS can affect timely reminders.")
@@ -91,3 +93,40 @@ public struct SettingsView: View {
 }
 
 private struct PolicyEditorSession: Identifiable { let id = UUID(); let draft: NotificationPolicyDraft }
+
+private struct AppUpdateSection: View {
+  let info: AppUpdateInfo
+
+  var body: some View {
+    Section("What's new") {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(info.versionLine).font(.headline)
+        Text(info.commitLine).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+        if info.latestEntry == nil {
+          Label(info.freshnessLine, systemImage: "exclamationmark.triangle")
+            .font(.caption).foregroundStyle(.orange)
+        } else {
+          Label(info.freshnessLine, systemImage: "checkmark.seal")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+      }
+      if let entry = info.latestEntry {
+        DisclosureGroup(entry.title) {
+          VStack(alignment: .leading, spacing: 6) {
+            ForEach(entry.items, id: \.self) { item in
+              Text("• \(item)").frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }.font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+        }
+      } else {
+        Text("Build ARGUS again with scripts/build-dev-app.sh to bundle CHANGELOG.md and the current Git commit.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      Button("Copy version info") {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(info.copyText, forType: .string)
+      }
+      .accessibilityHint("Copies the app version, build, Git commit, and bundled changelog summary")
+    }
+  }
+}
