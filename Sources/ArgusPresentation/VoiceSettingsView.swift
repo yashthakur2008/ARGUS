@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Independent preferences backed by shared coordinators, not duplicate view-local state.
 public struct VoiceSettingsView: View {
@@ -14,6 +15,11 @@ public struct VoiceSettingsView: View {
   public var body: some View {
     Group {
       Section("Voice experience") {
+        if let issue = voice.settingsIssue {
+          SettingsIssueBanner(issue: issue) {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
+          }
+        }
         Toggle("Always listen", isOn: Binding(
           get: { voice.alwaysListen },
           set: { voice.requestAlwaysListen($0) }
@@ -26,6 +32,8 @@ public struct VoiceSettingsView: View {
         .accessibilityIdentifier("voice.spokenResponses")
         Label(voice.statusText, systemImage: voice.isSpeaking ? "speaker.wave.2.fill" : "mic")
           .accessibilityIdentifier("voice.status")
+        Text("Mode and live state: \(voice.statusText). If claps or ‘Argus’ are not detected, confirm the selected activation mode below, macOS Microphone permission, and Speech Recognition permission for name activation.")
+          .font(.caption).foregroundStyle(.secondary)
         HStack {
           Button("Test voice") { voice.previewSpeech() }
             .disabled(!voice.spokenResponses)

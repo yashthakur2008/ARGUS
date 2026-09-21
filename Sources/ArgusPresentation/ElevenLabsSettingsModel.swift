@@ -33,6 +33,26 @@ public enum ElevenLabsCredentialStatus: Equatable, Sendable {
     }
   }
 
+  public var setupIssue: SettingsIssue? {
+    switch status {
+    case .unchecked:
+      return SettingsIssue(id: "elevenlabs-unchecked", title: "ElevenLabs voice is not ready",
+        message: "Check whether an API key is saved before testing spoken responses.", primaryAction: "Check Keychain")
+    case .notConfigured:
+      return SettingsIssue(id: "elevenlabs-missing-key", title: "ElevenLabs voice is not ready",
+        message: "Save an ElevenLabs API key in the login Keychain before ARGUS can speak.", primaryAction: "Save an API key")
+    case .configured where !transmissionConsent:
+      return SettingsIssue(id: "elevenlabs-missing-consent", title: "ElevenLabs voice is not ready",
+        message: "Allow text-transmission consent before Test voice or activation responses can send fixed response text to ElevenLabs.",
+        primaryAction: "Allow text transmission")
+    case .configured:
+      return nil
+    case .unavailable, .error:
+      return SettingsIssue(id: "elevenlabs-error", title: "ElevenLabs voice needs attention",
+        message: errorMessage ?? statusText, primaryAction: "Review Keychain")
+    }
+  }
+
   /// Shared by production composition and fake-boundary integration tests.
   /// Weak controller references avoid a settings/speech/controller ownership cycle.
   public func connectSpeech(_ speech: ElevenLabsSpeechOutput, controller: VoiceExperienceController) {

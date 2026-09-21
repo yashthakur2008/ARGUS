@@ -2,6 +2,12 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.7 - 2026-09-20
+
+- Add actionable Settings issues for microphone/Speech permission problems and ElevenLabs setup gaps, including prominent banners, a popup details path, and sidebar surfacing when voice setup needs attention.
+- Make ElevenLabs voice setup clearer by distinguishing missing API key, missing text-transmission consent, Keychain errors, and provider speech failures without adding a system-voice fallback.
+- Add presentation tests for denied automatic voice restore and ElevenLabs missing-key/consent guidance. Local Swift execution remains subject to the documented toolchain requirement.
+
 ## v0.1.6 - 2026-09-20
 
 - Add a fast repository hygiene check that requires no Swift compilation. It validates version/changelog consistency, Python syntax, shell syntax, trailing whitespace, and relative Markdown links, then runs from local and hosted verification before heavier Swift build steps.

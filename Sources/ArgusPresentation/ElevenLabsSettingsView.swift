@@ -9,11 +9,14 @@ import SwiftUI
 
   public var body: some View {
     Section("ElevenLabs voice") {
+      if let issue = model.setupIssue {
+        SettingsIssueBanner(issue: issue)
+      }
       LabeledContent("Voice ID", value: model.voiceID)
         .textSelection(.enabled)
       Text("This is the only spoken-response voice. There is no system-voice fallback.")
         .font(.caption).foregroundStyle(.secondary)
-      Text(model.statusText).font(.caption)
+      Text(model.statusText).font(.callout).foregroundStyle(model.setupIssue == nil ? .secondary : .primary)
       if let error = model.errorMessage {
         Text(error).font(.caption).foregroundStyle(.red)
       }
@@ -32,6 +35,7 @@ import SwiftUI
       }
       Toggle("Allow spoken-response text to be sent to ElevenLabs", isOn: Binding(
         get: { model.transmissionConsent }, set: { model.setTransmissionConsent($0) }))
+        .toggleStyle(.switch)
       Text("When enabled, generated spoken-response text is sent to ElevenLabs with your API key. Provider usage may incur charges. Saving a key does not test it or send text.")
         .font(.caption).foregroundStyle(.secondary)
       Text("Development storage: macOS login Keychain, trusted to this application. This is not signed broker isolation. Rebuilds may lose access. Prompt encryption and signed-worker isolation are not enabled by this adapter.")

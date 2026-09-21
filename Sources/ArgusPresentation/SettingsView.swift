@@ -10,6 +10,7 @@ public struct SettingsView: View {
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
   @State private var policyEditor: PolicyEditorSession?
+  @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
     elevenLabs: ElevenLabsSettingsModel? = nil) {
@@ -22,6 +23,11 @@ public struct SettingsView: View {
   }
   public var body: some View {
     Form {
+      if let issue = primaryIssue {
+        Section {
+          SettingsIssueBanner(issue: issue) { presentedIssue = issue }
+        }
+      }
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
@@ -67,6 +73,20 @@ public struct SettingsView: View {
     }.formStyle(.grouped).padding(16).frame(minWidth: 500, minHeight: 400)
       .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
       .sheet(item: $policyEditor) { session in QuietHoursEditor(model: model, draft: session.draft) }
+      .alert(item: $presentedIssue) { issue in
+        Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
+      }
+  }
+
+  private var primaryIssue: SettingsIssue? {
+    voice?.settingsIssue ?? elevenLabs?.setupIssue ?? notificationIssue
+  }
+
+  private var notificationIssue: SettingsIssue? {
+    guard model.result?.authorization == .denied else { return nil }
+    return SettingsIssue(id: "notification-denied", title: "Notifications need permission",
+      message: "ARGUS can save reminders locally, but macOS notification permission is denied. Allow notifications in System Settings, then refresh notification status.",
+      primaryAction: "Review notifications")
   }
 }
 

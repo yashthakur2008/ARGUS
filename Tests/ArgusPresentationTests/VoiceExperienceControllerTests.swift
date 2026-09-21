@@ -183,6 +183,18 @@ import ArgusPlatform
     #expect(h.voice.alwaysListen)
   }
 
+  @Test func deniedAutomaticRestoreHasActionableSettingsIssue() async throws {
+    let h = VoiceHarness()
+    await h.voice.setAlwaysListen(true)
+    h.voice.suspend(reason: .systemSleep)
+    h.permissions.allowed = false
+    await h.voice.resume(reason: .systemSleep)
+    let issue = try #require(h.voice.settingsIssue)
+    #expect(issue.title == "Microphone and Speech need attention")
+    #expect(issue.message.contains("System Settings"))
+    #expect(issue.primaryAction == "Review permissions")
+  }
+
   @Test func offDuringPendingPermissionCannotRestart() async throws {
     let h = VoiceHarness()
     h.audio.hold = true
