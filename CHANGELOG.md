@@ -2,7 +2,7 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
-## v0.1.8 - 2026-09-20
+## v0.1.8 - 2026-09-21
 
 - Add a Settings "What's new" section that shows the app version, build number, bundled Git commit, latest changelog notes, and a copyable diagnostic summary so users can confirm which ARGUS build is running.
 - Bundle `CHANGELOG.md` and the current commit into each development app build, with synthetic packaging coverage that verifies those resources are present before publication.
