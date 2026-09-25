@@ -40,6 +40,10 @@ Audio buffers and recognition text are transient in memory, not saved or logged 
 
 The icon is original project artwork, not an extracted game asset. It is built locally from the checked-in PNG with macOS tools. Image generation was a development activity, not a runtime dependency.
 
+## Development evidence and versions
+
+See the [versioned changelog](CHANGELOG.md) for update notes and the [stress-testing guide](docs/verification/stress-testing.md) for repeated Debug/Release checks, downloadable logs, and a feature-to-test map. These complement standard CI; automated fixtures do not establish live microphone, notification, or release acceptance. Live microphone activation remains a supported prototype feature with explicit permission controls.
+
 ## Build and run
 
 Requires macOS 14 or later, a **working Swift 6.1 toolchain and macOS SDK**, and Apple's standard command-line signing tools. Verification on this machine is Apple Silicon only. There are no external Swift package dependencies.
@@ -90,6 +94,7 @@ These complete workflows are not implemented by the reminder prototype. Optional
 
 ## Design and release gates
 
+- [External acceptance checklist](docs/verification/acceptance-checklist.md)
 - [Commercial readiness checkpoint and remaining gates](docs/verification/2026-09-18-commercial-readiness.md)
 - [Consolidated design](docs/superpowers/specs/2026-09-17-argus-native-macos-design.md)
 - [Phased delivery and verification roadmap](docs/superpowers/plans/2026-09-17-argus-delivery-roadmap.md)

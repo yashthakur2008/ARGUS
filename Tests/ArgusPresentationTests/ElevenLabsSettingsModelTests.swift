@@ -53,6 +53,23 @@ import Testing
     #expect(model.errorMessage != nil)
     #expect(credentials.removals == 0)
   }
+
+  @Test func setupIssueGuidesMissingKeyAndConsent() throws {
+    let credentials = SettingsFakeCredentials()
+    let model = ElevenLabsSettingsModel(credentials: credentials,
+      defaults: UserDefaults(suiteName: "ElevenLabsSettingsTests.\(UUID())")!)
+    model.refresh()
+    var issue = try #require(model.setupIssue)
+    #expect(issue.title == "ElevenLabs voice is not ready")
+    #expect(issue.primaryAction == "Save an API key")
+    credentials.key = "synthetic"
+    model.refresh()
+    issue = try #require(model.setupIssue)
+    #expect(issue.message.contains("text-transmission consent"))
+    #expect(issue.primaryAction == "Allow text transmission")
+    model.setTransmissionConsent(true)
+    #expect(model.setupIssue == nil)
+  }
 }
 
 @MainActor private final class SettingsFakeCredentials: ElevenLabsCredentialManaging {

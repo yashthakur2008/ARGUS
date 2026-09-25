@@ -64,6 +64,12 @@ while IFS= read -r rpath; do
   esac
 done < <(printf '%s\n' "$LOAD_COMMANDS" | /usr/bin/awk '/cmd LC_RPATH/{found=1; next} found && /path /{sub(/^ *path /, ""); sub(/ \(offset.*$/, ""); print; found=0}')
 cp "$ROOT/Config/Info.plist" "$STAGED_APP/Contents/Info.plist"
+cp "$ROOT/CHANGELOG.md" "$STAGED_APP/Contents/Resources/CHANGELOG.md"
+if git -C "$ROOT" rev-parse --short HEAD >/dev/null 2>&1; then
+  git -C "$ROOT" rev-parse --short HEAD > "$STAGED_APP/Contents/Resources/ARGUSCommit.txt"
+else
+  printf 'unavailable\n' > "$STAGED_APP/Contents/Resources/ARGUSCommit.txt"
+fi
 /usr/bin/plutil -lint "$STAGED_APP/Contents/Info.plist"
 /usr/bin/codesign --force --sign - "$STAGED_APP"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$STAGED_APP"

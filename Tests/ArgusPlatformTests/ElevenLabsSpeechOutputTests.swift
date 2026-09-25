@@ -109,16 +109,23 @@ import Testing
     #expect(output.lastFailure == .playback)
   }
 
-  @Test func timeoutCancelsAndNeverReportsSuccess() async throws {
+  @Test(.timeLimit(.minutes(1))) func timeoutCancelsAndNeverReportsSuccess() async throws {
     let transport = ElevenTransportFake()
     let output = ElevenLabsSpeechOutput(credentials: ElevenCredentialsFake(), disclosureAccepted: { true }, transport: transport, playback: MP3Fake(), timeout: .milliseconds(5))
     var results: [SpeechOutputResult] = []
-    output.onCompletion = { _, result in results.append(result) }
-    output.speak("Hello")
-    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-    while results.isEmpty && ContinuousClock.now < deadline {
-      try await Task.sleep(for: .milliseconds(1))
+    // Buffer the actual callback, not a wall-clock polling deadline that can
+    // expire while unrelated MainActor work delays the watchdog's first turn.
+    let (completions, continuation) = AsyncStream<SpeechOutputResult>.makeStream(
+      bufferingPolicy: .bufferingOldest(1))
+    output.onCompletion = { _, result in
+      results.append(result)
+      continuation.yield(result)
     }
+    defer { output.stop(); continuation.finish() }
+    output.speak("Hello")
+    var events = completions.makeAsyncIterator()
+    let firstResult = await events.next()
+    #expect(firstResult == .failed)
     #expect(output.lastFailure == .timedOut)
     #expect(transport.tokens[0].cancelled)
     #expect(results == [.failed])
@@ -175,18 +182,25 @@ import Testing
     output.stop()
   }
 
-  @Test func playbackTimeoutStopsAudioAndIgnoresLateFinish() async throws {
+  @Test(.timeLimit(.minutes(1))) func playbackTimeoutStopsAudioAndIgnoresLateFinish() async throws {
     let transport = ElevenTransportFake()
     let playback = MP3Fake()
     let output = ElevenLabsSpeechOutput(credentials: ElevenCredentialsFake(), disclosureAccepted: { true }, transport: transport, playback: playback, timeout: .milliseconds(5))
     var results: [SpeechOutputResult] = []
-    output.onCompletion = { _, result in results.append(result) }
+    // Buffer the actual callback, not a wall-clock polling deadline that can
+    // expire while unrelated MainActor work delays the watchdog's first turn.
+    let (completions, continuation) = AsyncStream<SpeechOutputResult>.makeStream(
+      bufferingPolicy: .bufferingOldest(1))
+    output.onCompletion = { _, result in
+      results.append(result)
+      continuation.yield(result)
+    }
+    defer { output.stop(); continuation.finish() }
     let id = output.speak("Hello")
     transport.completions[0](.success(Data([1])))
-    let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-    while results.isEmpty && ContinuousClock.now < deadline {
-      try await Task.sleep(for: .milliseconds(1))
-    }
+    var events = completions.makeAsyncIterator()
+    let firstResult = await events.next()
+    #expect(firstResult == .failed)
     #expect(playback.stops == 1)
     #expect(output.lastFailure == .timedOut)
     playback.onCompletion?(id, .finished)

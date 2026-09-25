@@ -38,13 +38,21 @@ public struct TodayView: View {
           Label("Notices", systemImage: "bell.badge").tag(Destination.notices)
           Label("Settings", systemImage: "slider.horizontal.3").tag(Destination.settings)
         }.listStyle(.sidebar)
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
           if let activation {
             VoiceStatusOrb(state: voice?.isSpeaking == true ? .speaking : (activation.isListening ? .listening : .off),
               accent: appearance?.color ?? .green, reduceMotion: appearance?.reduceMotion ?? false)
               .accessibilityIdentifier("today.activation.status")
             Text(voice?.statusText ?? activation.statusText)
               .font(.caption2).foregroundStyle(.secondary)
+            if let issue = voice?.settingsIssue ?? elevenLabs?.setupIssue {
+              Button { destination = .settings } label: {
+                Label(issue.title, systemImage: "exclamationmark.triangle.fill")
+                  .font(.caption.weight(.semibold))
+                  .foregroundStyle(.orange)
+                  .lineLimit(2)
+              }.buttonStyle(.plain).accessibilityIdentifier("today.settings.issue")
+            }
             if activation.isEnabled || voice?.alwaysListen == true || voice?.isSpeaking == true {
               Button("Stop listening") {
                 if let voice { voice.stopListening() } else { activation.stop() }

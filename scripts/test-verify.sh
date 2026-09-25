@@ -11,12 +11,17 @@ cp "$ROOT/scripts/verify.sh" "$WORK/scripts/verify.sh"
 for script in test-build-dev-app.sh test-verify.sh build-dev-app.sh; do
   printf '#!/bin/bash\nexit 0\n' > "$WORK/scripts/$script"
 done
+printf '#!/usr/bin/env python3\n' > "$WORK/scripts/check-hygiene.py"
 printf 'synthetic icon\n' > "$WORK/build/ARGUS.icns"
 cp "$WORK/build/ARGUS.icns" "$WORK/build/ARGUS.app/Contents/Resources/ARGUS.icns"
 printf 'synthetic plist\n' > "$WORK/build/ARGUS.app/Contents/Info.plist"
 cat > "$WORK/bin/swift" <<'SWIFT'
 #!/bin/bash
 [[ "${FAIL_AT:-}" != swift ]] || exit 42
+if [[ "${FAIL_AT:-}" == swift_test_abort && "${1:-}" == test ]]; then
+  echo 'dyld: Symbol not found in swift-package llbuild' >&2
+  exit 134
+fi
 exit 0
 SWIFT
 cat > "$WORK/bin/plutil" <<'PLUTIL'
@@ -79,7 +84,7 @@ failures=0
 cases=0
 for scenario in success relative_paths system_framework system_root_rpath system_library_root_rpath swift plist disclosure signature dependencies load_commands \
   private_dependency homebrew_dependency local_dependency toolchain_dependency volume_dependency traversal_dependency \
-  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath; do
+  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort; do
   cases=$((cases + 1))
   status=0
   PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" \
@@ -89,6 +94,14 @@ for scenario in success relative_paths system_framework system_root_rpath system
       echo "PASS $scenario"
     else
       echo "FAIL $scenario: expected successful synthetic verification"; cat "$WORK/$scenario.log"
+      failures=$((failures + 1))
+    fi
+  elif [[ "$scenario" == swift_test_abort ]]; then
+    if [[ "$status" != 0 ]] && grep -q 'Command Line Tools SwiftPM/llbuild' "$WORK/$scenario.log" \
+      && grep -q 'ARGUS_SWIFT' "$WORK/$scenario.log" && ! grep -q 'Local checks passed' "$WORK/$scenario.log"; then
+      echo "PASS rejects_$scenario"
+    else
+      echo "FAIL rejects_$scenario: missing actionable toolchain guidance"; cat "$WORK/$scenario.log"
       failures=$((failures + 1))
     fi
   elif [[ "$status" != 0 ]] && ! grep -q 'Local checks passed' "$WORK/$scenario.log"; then

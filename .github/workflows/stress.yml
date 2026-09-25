@@ -1,0 +1,71 @@
+name: Stress evidence
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stress-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repeat-suite:
+    name: Repeated suite (${{ matrix.configuration }})
+    runs-on: macos-15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        configuration: [debug, release]
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      ARGUS_STRESS_RUNS: '3'
+      ARGUS_STRESS_CONFIGURATION: ${{ matrix.configuration }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Validate toolchain and versioned changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$DEVELOPER_DIR"
+          xcodebuild -version
+          echo "ARGUS_SWIFT=$(xcrun --find swift)" >> "$GITHUB_ENV"
+          if [ -n "$BASE_SHA" ]; then
+            python3 scripts/check-version.py --base "$BASE_SHA"
+          else
+            python3 scripts/check-version.py
+          fi
+      - name: Test automation failure paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/test-version-check.py
+          python3 scripts/test-stress-test.py
+      - name: Repeat complete Swift suite
+        shell: bash
+        run: bash scripts/stress-test.sh "$RUNNER_TEMP/stress-evidence"
+      - name: Publish readable summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/stress-evidence/summary.md" ]; then
+            cat "$RUNNER_TEMP/stress-evidence/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Stress evidence unavailable. Inspect preceding step failures; no successful stress run is claimed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve raw evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: stress-${{ matrix.configuration }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/stress-evidence/
+          if-no-files-found: warn
+          retention-days: 14

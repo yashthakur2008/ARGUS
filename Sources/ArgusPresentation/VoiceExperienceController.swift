@@ -22,6 +22,27 @@ public enum VoiceSuspensionReason: Hashable, Sendable {
     if let message { return message }
     return activation.statusText
   }
+  public var settingsIssue: SettingsIssue? {
+    if let speechFailure {
+      return SettingsIssue(id: "elevenlabs-speech-failure", title: "ElevenLabs voice needs attention",
+        message: speechFailure.presentationMessage, primaryAction: "Review voice settings")
+    }
+    if let message, message.localizedCaseInsensitiveContains("permission") || message.localizedCaseInsensitiveContains("enable listening") {
+      return SettingsIssue(id: "activation-permissions", title: "Microphone and Speech need attention",
+        message: "ARGUS is not listening because macOS permissions are missing or need review. Open System Settings, allow Microphone and Speech Recognition for ARGUS, then start listening again.",
+        primaryAction: "Review permissions")
+    }
+    if case .unavailable(let reason) = activation.status {
+      return SettingsIssue(id: "activation-unavailable", title: "Listening could not start",
+        message: reason, primaryAction: "Review permissions")
+    }
+    if suspensions.contains(.startupUnverified), alwaysListen {
+      return SettingsIssue(id: "startup-unverified", title: "Listening is waiting for you",
+        message: "ARGUS will not assume the Mac is unlocked after a cold launch. Press Start listening once, or unlock the Mac to resume Always listen.",
+        primaryAction: "Start listening")
+    }
+    return nil
+  }
   /// Loading remembered mode is deliberately explicit. Initialization never changes current mode.
   public var preferredMode: ActivationMode? { preferences.preferredMode }
 

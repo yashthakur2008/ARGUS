@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ArgusPlatform
 import ArgusStore
 
@@ -9,22 +10,32 @@ public struct SettingsView: View {
   var voice: VoiceExperienceController?
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
+  var permissionRequester: (any SystemPermissionRequesting)?
   @State private var policyEditor: PolicyEditorSession?
+  @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
-    elevenLabs: ElevenLabsSettingsModel? = nil) {
+    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
     self.login = login
     self.elevenLabs = elevenLabs
+    self.permissionRequester = permissionRequester
   }
   public var body: some View {
     Form {
+      if let issue = primaryIssue {
+        Section {
+          SettingsIssueBanner(issue: issue) { presentedIssue = issue }
+        }
+      }
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
+      AppUpdateSection(info: AppUpdateInfo())
+      PermissionSupportSection(model: model, requester: permissionRequester)
       Section("Notifications") {
         Text(model.status)
         Text("Scheduled means macOS has a pending request, not that a banner was shown or seen. Focus, system settings, sleep and quitting ARGUS can affect timely reminders.")
@@ -67,7 +78,107 @@ public struct SettingsView: View {
     }.formStyle(.grouped).padding(16).frame(minWidth: 500, minHeight: 400)
       .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
       .sheet(item: $policyEditor) { session in QuietHoursEditor(model: model, draft: session.draft) }
+      .alert(item: $presentedIssue) { issue in
+        Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
+      }
+  }
+
+  private var primaryIssue: SettingsIssue? {
+    voice?.settingsIssue ?? elevenLabs?.setupIssue ?? notificationIssue
+  }
+
+  private var notificationIssue: SettingsIssue? {
+    guard model.result?.authorization == .denied else { return nil }
+    return SettingsIssue(id: "notification-denied", title: "Notifications need permission",
+      message: "ARGUS can save reminders locally, but macOS notification permission is denied. Allow notifications in System Settings, then refresh notification status.",
+      primaryAction: "Review notifications")
   }
 }
 
 private struct PolicyEditorSession: Identifiable { let id = UUID(); let draft: NotificationPolicyDraft }
+
+private struct AppUpdateSection: View {
+  let info: AppUpdateInfo
+
+  var body: some View {
+    Section("What's new") {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(info.versionLine).font(.headline)
+        Text(info.commitLine).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+        Text(info.recoveryLine).font(.caption).foregroundStyle(.secondary)
+        if info.latestEntry == nil {
+          Label(info.freshnessLine, systemImage: "exclamationmark.triangle")
+            .font(.caption).foregroundStyle(.orange)
+        } else {
+          Label(info.freshnessLine, systemImage: "checkmark.seal")
+            .font(.caption).foregroundStyle(.secondary)
+        }
+      }
+      if let entry = info.latestEntry {
+        DisclosureGroup(entry.title) {
+          VStack(alignment: .leading, spacing: 6) {
+            ForEach(entry.items, id: \.self) { item in
+              Text("• \(item)").frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }.font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+        }
+      } else {
+        Text("Build ARGUS again with scripts/build-dev-app.sh to bundle CHANGELOG.md and the current Git commit.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      Button("Copy version info") {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(info.copyText, forType: .string)
+      }
+      .accessibilityHint("Copies the app version, build, Git commit, and bundled changelog summary")
+    }
+  }
+}
+
+private struct PermissionSupportSection: View {
+  let model: AppModel
+  let requester: (any SystemPermissionRequesting)?
+
+  var body: some View {
+    Section("Permissions") {
+      Text("If ARGUS is missing from a macOS Privacy & Security list, use the request button first, then open the matching System Settings pane.")
+        .font(.callout).foregroundStyle(.secondary)
+      ForEach(PermissionSupportChecklist.defaultItems) { item in
+        VStack(alignment: .leading, spacing: 6) {
+          Text(item.title).font(.headline)
+          Text(item.detail).font(.caption).foregroundStyle(.secondary)
+          HStack {
+            if let action = item.requestActionTitle {
+              Button(action) { request(item.id) }
+                .disabled(requester == nil && item.id != "notifications")
+            }
+            if let systemSettingsTitle = item.systemSettingsTitle {
+              Button(systemSettingsTitle) { openSettings(item.id) }
+            }
+          }
+        }.padding(.vertical, 4)
+      }
+    }
+  }
+
+  private func request(_ id: String) {
+    switch id {
+    case "notifications": Task { await model.enableNotifications() }
+    case "microphone": Task { _ = await requester?.requestMicrophone() }
+    case "speech": Task { _ = await requester?.requestSpeechRecognition() }
+    case "accessibility": _ = requester?.requestAccessibilityListing()
+    default: break
+    }
+  }
+
+  private func openSettings(_ id: String) {
+    let url: String = switch id {
+    case "notifications": "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    case "microphone": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    case "speech": "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
+    case "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    default: "x-apple.systempreferences:com.apple.preference.security"
+    }
+    if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+  }
+}
