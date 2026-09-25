@@ -60,7 +60,11 @@ public struct AppUpdateInfo: Equatable, Sendable {
   }
 
   public var freshnessLine: String {
-    latestEntry == nil ? "No bundled changelog was found for this build." : "Showing changes bundled with this app build."
+    latestEntry == nil ? "This build is missing its bundled changelog. Rebuild or reinstall ARGUS from the latest app bundle." : "Showing changes bundled with this app build."
+  }
+
+  public var recoveryLine: String {
+    latestEntry == nil ? "The running app may be older than the source checkout if Settings does not show What's new." : "This changelog came from the app bundle you are running."
   }
 
   public var copyText: String {

@@ -45,7 +45,7 @@ struct AppChangelogTests {
 
     #expect(info.versionLine == "ARGUS version unknown")
     #expect(info.commitLine == "Build commit unavailable")
-    #expect(info.freshnessLine == "No bundled changelog was found for this build.")
+    #expect(info.freshnessLine == "This build is missing its bundled changelog. Rebuild or reinstall ARGUS from the latest app bundle.")
     #expect(info.copyText.contains("Version: unknown"))
     #expect(info.copyText.contains("Commit: unavailable"))
   }

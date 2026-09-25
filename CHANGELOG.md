@@ -2,6 +2,11 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.9 - 2026-09-25
+
+- Add a Settings permissions checklist with direct request buttons for notification, microphone, Speech Recognition, and Accessibility listing prompts, plus matching System Settings shortcuts.
+- Make missing bundled changelog resources actionable so a stale running app clearly points users to rebuild or reinstall the latest ARGUS app bundle.
+
 ## v0.1.8 - 2026-09-21
 
 - Add a Settings "What's new" section that shows the app version, build number, bundled Git commit, latest changelog notes, and a copyable diagnostic summary so users can confirm which ARGUS build is running.

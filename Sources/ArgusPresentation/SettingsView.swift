@@ -10,17 +10,19 @@ public struct SettingsView: View {
   var voice: VoiceExperienceController?
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
+  var permissionRequester: (any SystemPermissionRequesting)?
   @State private var policyEditor: PolicyEditorSession?
   @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
-    elevenLabs: ElevenLabsSettingsModel? = nil) {
+    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
     self.login = login
     self.elevenLabs = elevenLabs
+    self.permissionRequester = permissionRequester
   }
   public var body: some View {
     Form {
@@ -33,6 +35,7 @@ public struct SettingsView: View {
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
       AppUpdateSection(info: AppUpdateInfo())
+      PermissionSupportSection(model: model, requester: permissionRequester)
       Section("Notifications") {
         Text(model.status)
         Text("Scheduled means macOS has a pending request, not that a banner was shown or seen. Focus, system settings, sleep and quitting ARGUS can affect timely reminders.")
@@ -102,6 +105,7 @@ private struct AppUpdateSection: View {
       VStack(alignment: .leading, spacing: 8) {
         Text(info.versionLine).font(.headline)
         Text(info.commitLine).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+        Text(info.recoveryLine).font(.caption).foregroundStyle(.secondary)
         if info.latestEntry == nil {
           Label(info.freshnessLine, systemImage: "exclamationmark.triangle")
             .font(.caption).foregroundStyle(.orange)
@@ -128,5 +132,53 @@ private struct AppUpdateSection: View {
       }
       .accessibilityHint("Copies the app version, build, Git commit, and bundled changelog summary")
     }
+  }
+}
+
+private struct PermissionSupportSection: View {
+  let model: AppModel
+  let requester: (any SystemPermissionRequesting)?
+
+  var body: some View {
+    Section("Permissions") {
+      Text("If ARGUS is missing from a macOS Privacy & Security list, use the request button first, then open the matching System Settings pane.")
+        .font(.callout).foregroundStyle(.secondary)
+      ForEach(PermissionSupportChecklist.defaultItems) { item in
+        VStack(alignment: .leading, spacing: 6) {
+          Text(item.title).font(.headline)
+          Text(item.detail).font(.caption).foregroundStyle(.secondary)
+          HStack {
+            if let action = item.requestActionTitle {
+              Button(action) { request(item.id) }
+                .disabled(requester == nil && item.id != "notifications")
+            }
+            if let systemSettingsTitle = item.systemSettingsTitle {
+              Button(systemSettingsTitle) { openSettings(item.id) }
+            }
+          }
+        }.padding(.vertical, 4)
+      }
+    }
+  }
+
+  private func request(_ id: String) {
+    switch id {
+    case "notifications": Task { await model.enableNotifications() }
+    case "microphone": Task { _ = await requester?.requestMicrophone() }
+    case "speech": Task { _ = await requester?.requestSpeechRecognition() }
+    case "accessibility": _ = requester?.requestAccessibilityListing()
+    default: break
+    }
+  }
+
+  private func openSettings(_ id: String) {
+    let url: String = switch id {
+    case "notifications": "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    case "microphone": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    case "speech": "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
+    case "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    default: "x-apple.systempreferences:com.apple.preference.security"
+    }
+    if let url = URL(string: url) { NSWorkspace.shared.open(url) }
   }
 }
