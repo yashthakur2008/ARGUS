@@ -11,11 +11,13 @@ public struct SettingsView: View {
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
   var permissionRequester: (any SystemPermissionRequesting)?
+  var updateModel: GitHubUpdateModel?
   @State private var policyEditor: PolicyEditorSession?
   @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
-    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil) {
+    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
+    updateModel: GitHubUpdateModel? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
@@ -23,6 +25,7 @@ public struct SettingsView: View {
     self.login = login
     self.elevenLabs = elevenLabs
     self.permissionRequester = permissionRequester
+    self.updateModel = updateModel
   }
   public var body: some View {
     Form {
@@ -34,7 +37,7 @@ public struct SettingsView: View {
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
       ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
-      AppUpdateSection(info: AppUpdateInfo())
+      AppUpdateSection(info: AppUpdateInfo(), updateModel: updateModel)
       PermissionSupportSection(model: model, requester: permissionRequester)
       Section("Notifications") {
         Text(model.status)
@@ -99,6 +102,7 @@ private struct PolicyEditorSession: Identifiable { let id = UUID(); let draft: N
 
 private struct AppUpdateSection: View {
   let info: AppUpdateInfo
+  let updateModel: GitHubUpdateModel?
 
   var body: some View {
     Section("What's new") {
@@ -131,7 +135,49 @@ private struct AppUpdateSection: View {
         NSPasteboard.general.setString(info.copyText, forType: .string)
       }
       .accessibilityHint("Copies the app version, build, Git commit, and bundled changelog summary")
+      if let updateModel {
+        GitHubUpdateStatusView(model: updateModel)
+      }
     }
+    .task { await updateModel?.check() }
+  }
+}
+
+private struct GitHubUpdateStatusView: View {
+  let model: GitHubUpdateModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      if model.isChecking {
+        Label("Checking GitHub for updates…", systemImage: "arrow.triangle.2.circlepath")
+          .font(.callout).foregroundStyle(.secondary)
+      }
+      if let status = model.status {
+        Label(status.title, systemImage: status.showsUpdatePrompt ? "sparkles" : "checkmark.seal")
+          .font(.headline).foregroundStyle(status.showsUpdatePrompt ? .orange : .secondary)
+        Text(status.message).font(.callout).foregroundStyle(.secondary)
+        if let current = status.currentCommit, let latest = status.latestCommit {
+          Text("Current: \(current) · GitHub: \(latest)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        } else if let latest = status.latestCommit {
+          Text("GitHub: \(latest)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        }
+        HStack {
+          if let url = status.latestCommitURL {
+            Button("View latest commit") { NSWorkspace.shared.open(url) }
+          }
+          Button("View PR") { NSWorkspace.shared.open(GitHubUpdateChecker.pullRequestURL) }
+          Button("Copy rebuild command") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(status.copyCommand, forType: .string)
+          }
+        }
+      }
+      if let error = model.errorMessage {
+        Text(error).font(.caption).foregroundStyle(.orange)
+      }
+      Button("Check GitHub for updates") { Task { await model.check() } }
+        .disabled(model.isChecking)
+    }.padding(.vertical, 4)
   }
 }
 

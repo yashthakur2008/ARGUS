@@ -1,5 +1,7 @@
 import SwiftUI
+import AppKit
 import ArgusCore
+import ArgusPlatform
 
 public struct TodayView: View {
   var model: AppModel
@@ -8,21 +10,28 @@ public struct TodayView: View {
   var voice: VoiceExperienceController?
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
+  var permissionRequester: (any SystemPermissionRequesting)?
+  var updateModel: GitHubUpdateModel?
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
+  @State private var checkedForUpdates = false
+  @State private var showUpdateAlert = false
   @State private var expandedNow = false
   @State private var expandedApproaching = false
 
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
-    elevenLabs: ElevenLabsSettingsModel? = nil) {
+    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
+    updateModel: GitHubUpdateModel? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
     self.login = login
     self.elevenLabs = elevenLabs
+    self.permissionRequester = permissionRequester
+    self.updateModel = updateModel
   }
   public var body: some View {
     NavigationSplitView {
@@ -71,7 +80,7 @@ public struct TodayView: View {
     } detail: {
       if destination == .settings {
         SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-          elevenLabs: elevenLabs)
+          elevenLabs: elevenLabs, permissionRequester: permissionRequester, updateModel: updateModel)
       }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
@@ -98,6 +107,29 @@ public struct TodayView: View {
         }
       }.padding(24).frame(width: 440)
     }
+    .task { await checkForUpdatesOnce() }
+    .alert(updateModel?.status?.title ?? "ARGUS update", isPresented: $showUpdateAlert) {
+      if let url = updateModel?.status?.latestCommitURL {
+        Button("View latest commit") { NSWorkspace.shared.open(url) }
+      }
+      Button("View PR") { NSWorkspace.shared.open(GitHubUpdateChecker.pullRequestURL) }
+      Button("Copy rebuild command") {
+        if let command = updateModel?.status?.copyCommand {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(command, forType: .string)
+        }
+      }
+      Button("Not now", role: .cancel) {}
+    } message: {
+      Text(updateModel?.status?.message ?? "Check GitHub for the latest ARGUS build.")
+    }
+  }
+
+  private func checkForUpdatesOnce() async {
+    guard !checkedForUpdates, let updateModel else { return }
+    checkedForUpdates = true
+    await updateModel.check()
+    if updateModel.status?.showsUpdatePrompt == true { showUpdateAlert = true }
   }
 
   private var reminderContent: some View {
