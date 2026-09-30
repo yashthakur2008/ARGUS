@@ -34,6 +34,33 @@ public struct GitHubUpdateStatus: Equatable, Sendable {
   public var showsUpdatePrompt: Bool { kind == .updateAvailable || kind == .missingLocalCommit }
 }
 
+public enum GitHubUpdatePromptPolicy {
+  public static let reminderInterval: TimeInterval = 24 * 60 * 60
+  private static let deferredCommitKey = "ARGUS.GitHubUpdatePromptPolicy.deferredCommit"
+  private static let deferredAtKey = "ARGUS.GitHubUpdatePromptPolicy.deferredAt"
+
+  public static func shouldPrompt(_ status: GitHubUpdateStatus,
+    defaults: UserDefaults = .standard, now: Date = Date()) -> Bool {
+    guard status.showsUpdatePrompt else { return false }
+    guard let latestCommit = promptIdentity(for: status) else { return true }
+    guard defaults.string(forKey: deferredCommitKey) == latestCommit else { return true }
+    let deferredAt = defaults.double(forKey: deferredAtKey)
+    guard deferredAt > 0 else { return true }
+    return now.timeIntervalSince1970 - deferredAt >= reminderInterval
+  }
+
+  public static func `defer`(_ status: GitHubUpdateStatus,
+    defaults: UserDefaults = .standard, now: Date = Date()) {
+    guard let latestCommit = promptIdentity(for: status) else { return }
+    defaults.set(latestCommit, forKey: deferredCommitKey)
+    defaults.set(now.timeIntervalSince1970, forKey: deferredAtKey)
+  }
+
+  private static func promptIdentity(for status: GitHubUpdateStatus) -> String? {
+    status.latestCommitURL?.absoluteString ?? status.latestCommit
+  }
+}
+
 public enum GitHubUpdateChecker {
   public static let repository = "yashthakur2008/ARGUS"
   public static let branch = "feat/stress-evidence"

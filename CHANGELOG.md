@@ -2,6 +2,11 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.11 - 2026-09-30
+
+- Make the automatic GitHub update prompt less noisy: choosing Not now now defers the same latest commit for 24 hours, while a newer GitHub commit still prompts immediately.
+- Add regression coverage for same-commit deferral and new-commit re-prompt behavior.
+
 ## v0.1.10 - 2026-09-26
 
 - Add a GitHub-backed update check that compares the app bundle's embedded commit with the latest PR branch commit and shows an update prompt when a newer ARGUS build is available.

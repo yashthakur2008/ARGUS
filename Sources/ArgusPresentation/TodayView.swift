@@ -119,7 +119,9 @@ public struct TodayView: View {
           NSPasteboard.general.setString(command, forType: .string)
         }
       }
-      Button("Not now", role: .cancel) {}
+      Button("Not now", role: .cancel) {
+        if let status = updateModel?.status { GitHubUpdatePromptPolicy.defer(status) }
+      }
     } message: {
       Text(updateModel?.status?.message ?? "Check GitHub for the latest ARGUS build.")
     }
@@ -129,7 +131,7 @@ public struct TodayView: View {
     guard !checkedForUpdates, let updateModel else { return }
     checkedForUpdates = true
     await updateModel.check()
-    if updateModel.status?.showsUpdatePrompt == true { showUpdateAlert = true }
+    if let status = updateModel.status, GitHubUpdatePromptPolicy.shouldPrompt(status) { showUpdateAlert = true }
   }
 
   private var reminderContent: some View {
