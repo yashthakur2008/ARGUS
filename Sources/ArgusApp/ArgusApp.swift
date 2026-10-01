@@ -16,6 +16,7 @@ struct ArgusApplication: App {
   private let voice: VoiceExperienceController
   private let elevenLabs: ElevenLabsSettingsModel
   private let login: LoginItemController
+  private let updateModel: GitHubUpdateModel
 
   init() {
     let preferences: UserDefaults
@@ -44,6 +45,7 @@ struct ArgusApplication: App {
     if let preferredMode = voice.preferredMode { activation.mode = preferredMode }
     self.voice = voice
     self.login = LoginItemController(service: NativeLoginItemService())
+    self.updateModel = GitHubUpdateModel()
     feedback.voice = voice
     do {
       guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else {
@@ -79,7 +81,7 @@ struct ArgusApplication: App {
       Group {
         if let model {
           TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-            elevenLabs: elevenLabs)
+            elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester(), updateModel: updateModel)
             .task {
               if lifecycle.connect(model) {
                 await voice.restoreIfEnabled()
@@ -97,7 +99,7 @@ struct ArgusApplication: App {
     Settings {
       if let model {
         SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-          elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester())
+          elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester(), updateModel: updateModel)
           .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
       }
     }
