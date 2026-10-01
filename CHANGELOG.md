@@ -2,6 +2,11 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.12 - 2026-10-01
+
+- Add a persistent Settings update status summary so ARGUS clearly says whether this Mac is current, has a new build available, cannot check GitHub, or is missing bundled commit metadata.
+- Add regression coverage for user-facing update summary labels across current, stale, missing-metadata, and offline states.
+
 ## v0.1.11 - 2026-09-30
 
 - Make the automatic GitHub update prompt less noisy: choosing Not now now defers the same latest commit for 24 hours, while a newer GitHub commit still prompts immediately.

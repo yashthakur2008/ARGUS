@@ -148,6 +148,8 @@ private struct GitHubUpdateStatusView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
+      Label(model.presentationSummary, systemImage: summaryIcon)
+        .font(.headline).foregroundStyle(summaryColor)
       if model.isChecking {
         Label("Checking GitHub for updates…", systemImage: "arrow.triangle.2.circlepath")
           .font(.callout).foregroundStyle(.secondary)
@@ -178,6 +180,19 @@ private struct GitHubUpdateStatusView: View {
       Button("Check GitHub for updates") { Task { await model.check() } }
         .disabled(model.isChecking)
     }.padding(.vertical, 4)
+  }
+
+  private var summaryIcon: String {
+    if model.isChecking { return "arrow.triangle.2.circlepath" }
+    if model.errorMessage != nil { return "wifi.exclamationmark" }
+    guard let status = model.status else { return "questionmark.circle" }
+    return status.showsUpdatePrompt ? "sparkles" : "checkmark.seal"
+  }
+
+  private var summaryColor: Color {
+    if model.errorMessage != nil { return .orange }
+    guard let status = model.status else { return .secondary }
+    return status.showsUpdatePrompt ? .orange : .secondary
   }
 }
 

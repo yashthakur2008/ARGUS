@@ -32,6 +32,14 @@ public struct GitHubUpdateStatus: Equatable, Sendable {
   public let copyCommand: String
 
   public var showsUpdatePrompt: Bool { kind == .updateAvailable || kind == .missingLocalCommit }
+
+  public var presentationSummary: String {
+    switch kind {
+    case .upToDate: "Current on this Mac"
+    case .updateAvailable: "New build available"
+    case .missingLocalCommit: "Bundle metadata missing"
+    }
+  }
 }
 
 public enum GitHubUpdatePromptPolicy {
@@ -109,6 +117,12 @@ public final class GitHubUpdateModel {
   public private(set) var status: GitHubUpdateStatus?
   public private(set) var isChecking = false
   public private(set) var errorMessage: String?
+
+  public var presentationSummary: String {
+    if isChecking { return "Checking GitHub…" }
+    if errorMessage != nil { return "GitHub check unavailable" }
+    return status?.presentationSummary ?? "Not checked yet"
+  }
 
   private let current: () -> AppUpdateInfo
   private let fetch: @Sendable () async throws -> GitHubCommitSnapshot

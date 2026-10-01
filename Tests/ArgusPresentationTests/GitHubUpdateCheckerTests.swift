@@ -40,6 +40,25 @@ struct GitHubUpdateCheckerTests {
     #expect(snapshot.htmlURL.absoluteString == "https://github.com/yashthakur2008/ARGUS/commit/abcdef123456")
   }
 
+  @Test func presentationSummaryNamesUpToDateAndStaleStates() {
+    let current = AppUpdateInfo(version: "0.1.9", build: "10", commit: "abc1234", latestEntry: nil)
+    let same = GitHubCommitSnapshot(sha: "abc1234", htmlURL: URL(string: "https://github.com/yashthakur2008/ARGUS/commit/abc1234")!)
+    let newer = GitHubCommitSnapshot(sha: "def5678", htmlURL: URL(string: "https://github.com/yashthakur2008/ARGUS/commit/def5678")!)
+
+    #expect(GitHubUpdateChecker.status(current: current, remote: same)?.presentationSummary == "Current on this Mac")
+    #expect(GitHubUpdateChecker.status(current: current, remote: newer)?.presentationSummary == "New build available")
+  }
+
+  @Test @MainActor func presentationSummaryNamesMissingMetadataAndOfflineStates() async {
+    let current = AppUpdateInfo(version: "0.1.9", build: "10", commit: nil, latestEntry: nil)
+    let newer = GitHubCommitSnapshot(sha: "def5678", htmlURL: URL(string: "https://github.com/yashthakur2008/ARGUS/commit/def5678")!)
+    let model = GitHubUpdateModel(current: { current }) { throw URLError(.notConnectedToInternet) }
+
+    #expect(GitHubUpdateChecker.status(current: current, remote: newer)?.presentationSummary == "Bundle metadata missing")
+    await model.check()
+    #expect(model.presentationSummary == "GitHub check unavailable")
+  }
+
   @Test func updatePromptPolicySuppressesSameCommitUntilReminderWindowExpires() {
     let defaults = UserDefaults(suiteName: "ARGUS.GitHubUpdatePromptPolicyTests.sameCommit")!
     defaults.removePersistentDomain(forName: "ARGUS.GitHubUpdatePromptPolicyTests.sameCommit")
