@@ -111,7 +111,7 @@ public final class AppModel {
     readFailed = true
     isReconciling = false
     result = nil
-    message = "Could not read reminders: \(error)"
+    message = "Could not read reminders. \(error)"
   }
 
   /// Successful local writes/publication invalidate pending loads, including direct
@@ -152,7 +152,7 @@ public final class AppModel {
       if commandText == input { commandText = "" }
       await refresh()
     } catch {
-      message = "Could not apply command: \(error). \(Self.examples)"
+      message = CommandFailureText.message(for: error, examples: Self.examples)
     }
   }
 
@@ -180,7 +180,7 @@ public final class AppModel {
       invalidateRefresh()
       message = nil
     } catch {
-      message = "Reminder changed or could not be deleted. Please review it again. \(error)"
+      message = "Reminder changed or could not be deleted. Please review it again. \(CommandFailureText.reason(for: error))"
     }
     await refresh()
   }
@@ -198,7 +198,7 @@ public final class AppModel {
       await refresh()
       return true
     } catch {
-      message = "Could not save. Check the fields, or reopen to review a newer version. \(error)"
+      message = "Could not save. Check the fields, or reopen to review a newer version. \(CommandFailureText.reason(for: error))"
       return false
     }
   }
@@ -227,7 +227,7 @@ public final class AppModel {
       try saveSnooze(reminder, until: until, now: now)
       message = nil
     } catch {
-      message = "Could not snooze. Please review the reminder. \(error)"
+      message = "Could not snooze. Please review the reminder. \(CommandFailureText.reason(for: error))"
       await refresh()
       return false
     }
@@ -267,7 +267,7 @@ public final class AppModel {
     isWorking = true
     defer { isWorking = false }
     do { try await requestPermission(); message = nil }
-    catch { message = "Notification permission request failed: \(error)" }
+    catch { message = "Notification permission request failed. \(CommandFailureText.reason(for: error))" }
     await refresh()
   }
 

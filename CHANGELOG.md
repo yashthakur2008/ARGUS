@@ -2,6 +2,12 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.13 - 2026-10-21
+
+- Replace raw Swift error text in user-facing messages. Failures previously showed internal case names such as `unsupportedCommand` or `sqlite(code:message:)`; each failure now states what was wrong and what to do instead.
+- Check for updates against the branch development actually lands on. A current build previously reported "Update available" permanently and linked a commit older than the one it was built from.
+- Move the Settings Privacy & Security pane mapping into the model and cover destination correctness and uniqueness, so a row cannot silently open an unrelated permission list.
+
 ## v0.1.12 - 2026-10-01
 
 - Add a persistent Settings update status summary so ARGUS clearly says whether this Mac is current, has a new build available, cannot check GitHub, or is missing bundled commit metadata.

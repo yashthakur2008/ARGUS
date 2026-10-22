@@ -47,7 +47,7 @@ public final class ReminderRecoveryModel {
       }
       issue = nil
       return reminder
-    } catch { issue = "Could not open the reminder: \(error)"; return nil }
+    } catch { issue = "Could not open the reminder. \(CommandFailureText.reason(for: error))"; return nil }
   }
 
   @discardableResult public func dismiss(_ notice: ReminderNotice, now: Date) -> Bool {
@@ -57,7 +57,7 @@ public final class ReminderRecoveryModel {
       notices = try store.notices(includeDismissed: true)
       issue = nil
       return true
-    } catch { issue = "Could not dismiss this notice: \(error)"; return false }
+    } catch { issue = "Could not dismiss this notice. \(CommandFailureText.reason(for: error))"; return false }
   }
 
   @discardableResult public func snooze(_ notice: ReminderNotice, occurrenceAt: Date?, until: Date,
@@ -77,7 +77,7 @@ public final class ReminderRecoveryModel {
     } catch StoreError.activeSnoozeConflict {
       issue = "A different occurrence already has a pending snooze. Open the source reminder to review it. This notice was not dismissed."
       return false
-    } catch { issue = "Could not snooze this notice. Please review the current reminder. \(error)"; return false }
+    } catch { issue = "Could not snooze this notice. Please review the current reminder. \(CommandFailureText.reason(for: error))"; return false }
   }
 
   @discardableResult public func savePolicy(_ policy: NotificationPolicy, expectedRevision: Int64) -> Bool {
@@ -87,6 +87,6 @@ public final class ReminderRecoveryModel {
       self.policy = try store.notificationPolicy()
       issue = nil
       return true
-    } catch { issue = "Could not save notification settings. Reload and review the current policy. \(error)"; return false }
+    } catch { issue = "Could not save notification settings. Reload and review the current policy. \(CommandFailureText.reason(for: error))"; return false }
   }
 }

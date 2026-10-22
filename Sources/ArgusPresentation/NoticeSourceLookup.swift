@@ -16,6 +16,6 @@ actor NoticeSourceLookup: NoticeSourceLookingUp {
     do {
       guard let source = try store.reminder(id: notice.reminderID) else { return .missing }
       return .found(source)
-    } catch { return .failed("Could not open the reminder: \(error)") }
+    } catch { return .failed("Could not open the reminder. \(CommandFailureText.reason(for: error))") }
   }
 }

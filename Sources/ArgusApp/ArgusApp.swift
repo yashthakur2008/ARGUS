@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import ArgusCore
 import ArgusPresentation
 import ArgusStore
 import ArgusPlatform
@@ -69,7 +70,7 @@ struct ArgusApplication: App {
       startupError = nil
     } catch {
       model = nil
-      startupError = "ARGUS could not start. Use the development .app bundle, and verify its local data directory is accessible. Existing data was not replaced. \(error)"
+      startupError = "ARGUS could not start. Use the development .app bundle, and verify its local data directory is accessible. Existing data was not replaced. \(CommandFailureText.reason(for: error))"
     }
     // Install the startup barrier and observers before any Scene exposes capture controls,
     // including a Settings-first launch or a failed reminder-store initialization.
