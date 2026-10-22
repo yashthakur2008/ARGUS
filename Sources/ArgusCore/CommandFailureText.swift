@@ -20,9 +20,23 @@ public enum CommandFailureText {
 
   public static func reason(for error: Error) -> String {
     guard let failure = error as? UserFacingFailure else {
-      return "Something went wrong and the action was not applied."
+      return operatingSystemReason(for: error)
+        ?? "Something went wrong and the action was not applied."
     }
     return failure.userFacingReason
+  }
+
+  /// Text supplied by macOS, used only when it actually describes the problem.
+  ///
+  /// `localizedDescription` never fails: a Swift error without
+  /// `LocalizedError` still yields "The operation couldn't be completed.
+  /// (ArgusCore.CoreError error 1.)", which exposes a type name and tells the
+  /// user nothing. Such placeholders are rejected rather than displayed.
+  private static func operatingSystemReason(for error: Error) -> String? {
+    let described = (error as NSError).localizedDescription
+    guard !described.isEmpty, !described.contains("couldn’t be completed"),
+      !described.contains("couldn't be completed") else { return nil }
+    return described.hasSuffix(".") ? described : described + "."
   }
 }
 

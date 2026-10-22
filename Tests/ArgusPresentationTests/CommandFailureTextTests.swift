@@ -50,4 +50,27 @@ struct CommandFailureTextTests {
     #expect(!reason.contains("Mystery"))
     #expect(reason.hasSuffix("."))
   }
+
+  @Test func foundationPlaceholderTextIsRejectedRatherThanShown() {
+    // localizedDescription never fails: a plain Swift error still yields
+    // "The operation couldn't be completed. (Module.Type error 1.)", which
+    // leaks a type name and explains nothing.
+    struct Mystery: Error {}
+
+    let reason = CommandFailureText.reason(for: Mystery())
+
+    #expect(!reason.contains("error 1"))
+    #expect(!reason.contains("couldn’t be completed"))
+    #expect(!reason.contains("Tests"))
+  }
+
+  @Test func genuineOperatingSystemTextIsPreservedAndPunctuated() {
+    let described = NSError(domain: "SMAppServiceErrorDomain", code: 1,
+      userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"])
+
+    let reason = CommandFailureText.reason(for: described)
+
+    // Discarding real OS text would lose the only usable diagnosis.
+    #expect(reason == "Operation not permitted.")
+  }
 }

@@ -107,11 +107,14 @@ public final class AppModel {
     return .loaded(loadedPolicy)
   }
 
-  private func failRefresh(_ error: String) {
+  /// `reason` already comes from `CommandFailureText`, applied by the loader at
+  /// the point the error was caught, so it is user-facing text rather than an
+  /// error value.
+  private func failRefresh(_ reason: String) {
     readFailed = true
     isReconciling = false
     result = nil
-    message = "Could not read reminders. \(error)"
+    message = "Could not read reminders. \(reason)"
   }
 
   /// Successful local writes/publication invalidate pending loads, including direct
