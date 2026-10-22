@@ -25,7 +25,7 @@ public final class AppModel {
   private var readFailed = false
   private var refreshSequence = 0
   private var deletionRequestedAt: Date?
-  public static let examples = "Try “remind me to Stretch in 20 minutes” or “every weekday at 09:00, Plan the day”."
+  public static let examples = "Try “remind me to Stretch in 20 minutes”, “remind me to Call mom tomorrow at 09:00”, or “every weekday at 09:00, Plan the day”."
 
   public convenience init(store: ReminderStore, client: any NotificationClient,
     clock: @escaping @Sendable () -> Date,

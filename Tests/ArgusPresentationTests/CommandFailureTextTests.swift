@@ -64,6 +64,21 @@ struct CommandFailureTextTests {
     #expect(!reason.contains("Tests"))
   }
 
+  @MainActor @Test func everyAdvertisedExampleActuallyParses() throws {
+    // Guidance that suggests a phrase the parser rejects is worse than none.
+    let quoted = AppModel.examples.split(separator: "“").dropFirst()
+      .compactMap { $0.split(separator: "”").first.map(String.init) }
+    #expect(quoted.count >= 3)
+
+    let zone = TimeZone(identifier: "America/Los_Angeles")!
+    for example in quoted {
+      #expect(throws: Never.self, "Advertised example does not parse: \(example)") {
+        try CommandParser.parse(example, now: Date(timeIntervalSince1970: 1_700_000_000),
+          timeZone: zone)
+      }
+    }
+  }
+
   @Test func genuineOperatingSystemTextIsPreservedAndPunctuated() {
     let described = NSError(domain: "SMAppServiceErrorDomain", code: 1,
       userInfo: [NSLocalizedDescriptionKey: "Operation not permitted"])

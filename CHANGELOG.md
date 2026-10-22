@@ -2,6 +2,13 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.14 - 2026-10-22
+
+- Accept everyday command phrasing. `in 20 mins`, `in 2 hrs`, repeated spaces, and a trailing `.` or `!` previously failed as unrecognized commands even though the intent was unambiguous.
+- Add one-time clock times: `remind me to Call mom at 09:00` and `remind me to Call mom tomorrow at 09:00`. A time that already passed today resolves to the next day rather than the past, and daylight-saving gaps resolve to a real local instant.
+- Keep the grammar finite. Free text, spelled-out numbers, and empty titles are still rejected, and command words inside a title stay part of the title.
+- Verify every example shown in the app actually parses, so guidance cannot advertise a phrase the parser rejects.
+
 ## v0.1.13 - 2026-10-21
 
 - Replace raw Swift error text in user-facing messages. Failures previously showed internal case names such as `unsupportedCommand` or `sqlite(code:message:)`; each failure now states what was wrong and what to do instead.
