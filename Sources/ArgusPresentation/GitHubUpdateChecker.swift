@@ -71,8 +71,14 @@ public enum GitHubUpdatePromptPolicy {
 
 public enum GitHubUpdateChecker {
   public static let repository = "yashthakur2008/ARGUS"
-  public static let branch = "feat/stress-evidence"
+  /// Branch the running app compares itself against.
+  ///
+  /// This must be the branch development actually lands on. Pointing it at a
+  /// branch that has stopped advancing makes a current build report "Update
+  /// available" forever while linking a commit older than the one it was built
+  /// from, so it is kept identical to the branch whose PR the prompt opens.
   public static let updatePromptBranch = "feat/github-update-prompt"
+  public static let branch = updatePromptBranch
   public static let latestCommitURL = URL(string: "https://api.github.com/repos/\(repository)/commits/\(branch)")!
   public static let pullRequestURL = URL(string: "https://github.com/yashthakur2008/ARGUS/pulls?q=is%3Apr+head%3A\(updatePromptBranch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? updatePromptBranch)")!
   public static let rebuildCommand = "ARGUS_SWIFT=/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift bash scripts/build-dev-app.sh"

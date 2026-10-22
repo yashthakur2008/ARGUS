@@ -105,4 +105,12 @@ struct GitHubUpdateCheckerTests {
 
     #expect(GitHubUpdatePromptPolicy.shouldPrompt(second, defaults: defaults, now: now.addingTimeInterval(60)))
   }
+
+  @Test func polledBranchMatchesTheBranchThePromptLinksTo() {
+    // Polling a branch that development has moved off makes an up-to-date
+    // build prompt forever and link a commit older than its own.
+    #expect(GitHubUpdateChecker.branch == GitHubUpdateChecker.updatePromptBranch)
+    #expect(GitHubUpdateChecker.latestCommitURL.absoluteString
+      == "https://api.github.com/repos/yashthakur2008/ARGUS/commits/\(GitHubUpdateChecker.updatePromptBranch)")
+  }
 }
