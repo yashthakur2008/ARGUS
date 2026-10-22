@@ -46,7 +46,7 @@ extension CoreError: UserFacingFailure {
     case .unsupportedCommand:
       "ARGUS did not recognize that command. It understands a small fixed set of phrases, and the wording must match closely."
     case .invalidTitle:
-      "That reminder needs a title of 1 to 200 characters."
+      "That reminder needs a title of 1 to \(maximumTitleLength) characters."
     case .invalidDuration:
       "That amount of time is not usable. Use a whole number of minutes, hours, or days, such as 20 minutes."
     case .invalidDate:

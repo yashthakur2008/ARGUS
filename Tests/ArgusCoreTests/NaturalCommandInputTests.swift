@@ -102,6 +102,50 @@ struct NaturalCommandInputTests {
     }
   }
 
+  @Test func titleLimitMessageMatchesTheLimitActuallyEnforced() throws {
+    let atLimit = String(repeating: "a", count: maximumTitleLength)
+    let overLimit = String(repeating: "a", count: maximumTitleLength + 1)
+
+    #expect(throws: Never.self) {
+      try CommandParser.parse("remind me to \(atLimit) in 5 minutes", now: now, timeZone: zone)
+    }
+    #expect(throws: (any Error).self) {
+      try CommandParser.parse("remind me to \(overLimit) in 5 minutes", now: now, timeZone: zone)
+    }
+    // The rejection message quoted a different number than the rule enforced.
+    #expect(CommandFailureText.reason(for: CoreError.invalidTitle)
+      .contains("\(maximumTitleLength)"))
+  }
+
+  @Test func punctuationInsideATitleIsNotStripped() throws {
+    for (input, expected) in [
+      ("remind me to a. b in 5 minutes", "a. b"),
+      ("remind me to Really?! in 5 minutes", "Really?!"),
+      ("remind me to Buy milk. Then bread in 5 minutes", "Buy milk. Then bread"),
+    ] {
+      guard case let .create(title, _, _, _) = try CommandParser.parse(
+        input, now: now, timeZone: zone) else {
+        Issue.record("Expected a create command for \(input)"); continue
+      }
+      #expect(title == expected)
+    }
+  }
+
+  @Test func inputThatIsOnlyNoiseIsRejectedRatherThanEmptied() {
+    // Normalization strips trailing punctuation, so it must not reduce input to
+    // an empty string and then match something unintended.
+    for text in ["...", "!", "   ", ".!.!", ""] {
+      #expect(throws: (any Error).self) {
+        try CommandParser.parse(text, now: now, timeZone: zone)
+      }
+    }
+  }
+
+  @Test func bareKeywordsToleratePunctuationToo() throws {
+    #expect(try CommandParser.parse("LIST.", now: now, timeZone: zone) == .list)
+    #expect(try CommandParser.parse("help!", now: now, timeZone: zone) == .help)
+  }
+
   @Test func embeddedCommandWordsStayPartOfTheTitle() throws {
     guard case let .create(title, _, _, recurrence) = try CommandParser.parse(
       "remind me to list and delete old files in 5 minutes", now: now, timeZone: zone) else {

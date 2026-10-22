@@ -2,6 +2,10 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.15 - 2026-10-22
+
+- Correct the reminder title limit shown on rejection. The message named 200 characters while 512 was enforced, so a valid title could be described as too long. The limit is now a single named value used by both the rule and the message.
+
 ## v0.1.14 - 2026-10-22
 
 - Accept everyday command phrasing. `in 20 mins`, `in 2 hrs`, repeated spaces, and a trailing `.` or `!` previously failed as unrecognized commands even though the intent was unambiguous.
