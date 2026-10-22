@@ -233,13 +233,8 @@ private struct PermissionSupportSection: View {
   }
 
   private func openSettings(_ id: String) {
-    let url: String = switch id {
-    case "notifications": "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
-    case "microphone": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-    case "speech": "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
-    case "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-    default: "x-apple.systempreferences:com.apple.preference.security"
-    }
-    if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+    guard let string = PermissionSupportChecklist.systemSettingsURLString(for: id),
+          let url = URL(string: string) else { return }
+    NSWorkspace.shared.open(url)
   }
 }
