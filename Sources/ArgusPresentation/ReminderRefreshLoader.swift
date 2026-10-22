@@ -84,12 +84,12 @@ private actor SQLiteRefreshWorker: ReminderRefreshLoading {
   func load(now: Date, sequence: Int) -> ReminderRefreshLoadResult {
     let reminders: [Reminder]
     do { reminders = try store.list() }
-    catch { return .listFailure(String(describing: error)) }
+    catch { return .listFailure(CommandFailureText.reason(for: error)) }
     do {
       let snapshot = try store.refreshSnapshot(now: now)
       return .loaded(reminders: snapshot.reminders, notices: snapshot.notices, policy: snapshot.policy)
     } catch {
-      return .recoveryFailure(reminders: reminders, message: String(describing: error))
+      return .recoveryFailure(reminders: reminders, message: CommandFailureText.reason(for: error))
     }
   }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import ArgusCore
 import ArgusStore
 
 struct QuietHoursEditor: View {
@@ -56,7 +57,7 @@ struct QuietHoursEditor: View {
             do {
               if await model.saveNotificationPolicy(try submittedDraft.policy(), expectedRevision: submittedDraft.revision) { dismiss() }
               else { error = model.recovery.issue }
-            } catch { self.error = "Check the quiet-hours values: \(error)" }
+            } catch { self.error = "Check the quiet-hours values. \(CommandFailureText.reason(for: error))" }
           }
         }.keyboardShortcut(.defaultAction).disabled(model.isWorking || isReloading || isSubmitting)
       }

@@ -10,7 +10,7 @@ The later [hardening checkpoint](docs/verification/2026-09-18-commercial-readine
 
 ## Available in the prototype
 
-- Typed finite reminder commands, plus native creation/editing controls.
+- Typed finite reminder commands, plus native creation/editing controls. Commands accept everyday phrasing such as `in 20 mins`, `in 2 hrs`, `at 09:00`, and `tomorrow at 09:00`, along with extra spaces and a trailing `.` or `!`. The grammar stays finite and reminder titles are always treated as data, never as instructions.
 - One-time reminders, weekday recurrence, stored time zones, multiple alert offsets, and snooze without changing the deadline.
 - SQLite persistence with optimistic revisions, corruption checks, transactional notification generations, and restart reconciliation.
 - A compact Today view with Now, Approaching, All reminders, and real settings.

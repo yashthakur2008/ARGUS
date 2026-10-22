@@ -6,17 +6,36 @@ public enum CommandParser {
   {
     try validateDate(now)
     _ = try validatedZone(timeZone.identifier)
-    let input = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let input = normalized(text)
     switch input.lowercased() {
     case "list": return .list
     case "help": return .help
     default: break
     }
-    if let parts = captures(#"remind me to (.+) in ([0-9]+) (minutes?|hours?|days?)"#, input) {
+    if let parts = captures(#"remind me to (.+) in ([0-9]+) (min|mins|minute|minutes|hr|hrs|hour|hours|day|days)"#, input) {
       let due = try addingDuration(parts[1], unit: parts[2], to: now)
       return .create(
         title: try validatedTitle(parts[0]), dueAt: due, timeZoneID: timeZone.identifier,
         recurrence: nil)
+    }
+    // "at 9:00" and "tomorrow at 9:00" are the clock-time counterparts of the
+    // relative "in N minutes" form. Without a day, the next matching instant is
+    // used, so an already-passed time means tomorrow rather than the past.
+    // These are two patterns rather than one optional group because `captures`
+    // drops non-participating groups, which would silently shift the indices.
+    for (pattern, skipsToday) in [
+      (#"remind me to (.+?) tomorrow at ([0-9]{1,2}):([0-9]{2})"#, true),
+      (#"remind me to (.+?) at ([0-9]{1,2}):([0-9]{2})"#, false),
+    ] {
+      guard let parts = captures(pattern, input), parts.count == 3,
+        let hour = Int(parts[1]), let minute = Int(parts[2])
+      else { continue }
+      return .create(
+        title: try validatedTitle(parts[0]),
+        dueAt: try nextClockTime(
+          hour: hour, minute: minute, after: now, timeZone: timeZone,
+          skippingToday: skipsToday),
+        timeZoneID: timeZone.identifier, recurrence: nil)
     }
     if let parts = captures(#"every weekday at ([0-9]{1,2}):([0-9]{2}),\s*(.+)"#, input),
       let hour = Int(parts[0]), let minute = Int(parts[1])
@@ -31,7 +50,7 @@ public enum CommandParser {
     if let parts = captures("delete " + uuid, input), let id = UUID(uuidString: parts[0]) {
       return .delete(id: id)
     }
-    if let parts = captures("snooze " + uuid + #" for ([0-9]+) (minutes?|hours?|days?)"#, input),
+    if let parts = captures("snooze " + uuid + #" for ([0-9]+) (min|mins|minute|minutes|hr|hrs|hour|hours|day|days)"#, input),
       let id = UUID(uuidString: parts[0])
     {
       return .snooze(id: id, until: try addingDuration(parts[1], unit: parts[2], to: now))
@@ -85,6 +104,52 @@ public enum CommandParser {
     throw CoreError.unsupportedCommand
   }
 
+  /// Next local instant matching a wall-clock time.
+  ///
+  /// Calendar search is used rather than adding seconds so a spring-forward gap
+  /// or fall-back fold resolves to a real local instant instead of drifting by
+  /// the offset change.
+  private static func nextClockTime(
+    hour: Int, minute: Int, after now: Date, timeZone: TimeZone, skippingToday: Bool
+  ) throws -> Date {
+    guard (0...23).contains(hour), (0...59).contains(minute) else { throw CoreError.invalidDate }
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    // Searching from the start of tomorrow is what makes "tomorrow" mean the
+    // next day even when the time has not yet passed today.
+    var search = now
+    if skippingToday {
+      guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+      else { throw CoreError.invalidDate }
+      search = tomorrow.addingTimeInterval(-1)
+    }
+    guard let candidate = calendar.nextDate(
+      after: search, matching: DateComponents(hour: hour, minute: minute, second: 0),
+      matchingPolicy: .nextTime, repeatedTimePolicy: .first)
+    else { throw CoreError.invalidDate }
+    try validateDate(candidate)
+    guard candidate > now else { throw CoreError.invalidDate }
+    return candidate
+  }
+
+  /// Removes typing noise the grammar should not care about.
+  ///
+  /// Doubled spaces and a trailing "." or "!" are how people actually type, and
+  /// rejecting them made correct commands look broken. Only whitespace and
+  /// trailing sentence punctuation are touched: the title itself is never
+  /// rewritten, so it stays the user's data rather than something we invented.
+  private static func normalized(_ text: String) -> String {
+    let collapsed = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    // A title may legitimately end in "?" (for example "remind me to ask why?"),
+    // so only sentence-terminating noise is dropped.
+    var trimmed = Substring(collapsed)
+    while let last = trimmed.last, last == "." || last == "!" {
+      trimmed = trimmed.dropLast()
+    }
+    let result = String(trimmed).trimmingCharacters(in: .whitespaces)
+    return result.isEmpty ? collapsed : result
+  }
+
   private static func captures(_ pattern: String, _ text: String) -> [String]? {
     guard
       let regex = try? NSRegularExpression(
@@ -104,8 +169,10 @@ public enum CommandParser {
     }
     let multiplier: UInt64
     switch unit.lowercased() {
-    case "m", "minute", "minutes": multiplier = 60
-    case "h", "hour", "hours": multiplier = 3600
+    // The alert-offset grammar uses the single letters; typed commands use the
+    // words and their everyday abbreviations.
+    case "m", "min", "mins", "minute", "minutes": multiplier = 60
+    case "h", "hr", "hrs", "hour", "hours": multiplier = 3600
     case "d", "day", "days": multiplier = 86400
     default: throw CoreError.invalidDuration
     }

@@ -35,4 +35,19 @@ public enum PermissionSupportChecklist {
       detail: "Optional. This starts ARGUS after login, but it does not grant microphone or speech permissions.",
       requestActionTitle: nil, systemSettingsTitle: nil)
   ]
+
+  /// Privacy & Security pane opened for a checklist row.
+  ///
+  /// These URL strings are fragile, so they live here rather than inline in the
+  /// view: a wrong pane silently sends users somewhere unrelated, and only a
+  /// pure mapping can be covered by regression tests.
+  public static func systemSettingsURLString(for id: String) -> String? {
+    switch id {
+    case "notifications": "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    case "microphone": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    case "speech": "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
+    case "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+    default: nil
+    }
+  }
 }

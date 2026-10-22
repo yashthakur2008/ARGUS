@@ -1,3 +1,4 @@
+import ArgusCore
 import ArgusPlatform
 import Foundation
 import Observation
@@ -34,7 +35,7 @@ public final class LoginItemController {
       try service.setEnabled(enabled)
       errorMessage = nil
     } catch {
-      errorMessage = error.localizedDescription
+      errorMessage = CommandFailureText.reason(for: error)
     }
   }
 

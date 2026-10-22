@@ -152,9 +152,15 @@ public struct Reminder: Codable, Equatable, Sendable {
   }
 }
 
+/// Longest accepted reminder title.
+///
+/// Named so the rule and the message shown on rejection cannot drift apart;
+/// a hardcoded number in the message previously disagreed with this limit.
+public let maximumTitleLength = 512
+
 func validatedTitle(_ title: String) throws -> String {
   let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-  guard !trimmed.isEmpty, trimmed.count <= 512 else { throw CoreError.invalidTitle }
+  guard !trimmed.isEmpty, trimmed.count <= maximumTitleLength else { throw CoreError.invalidTitle }
   return trimmed
 }
 

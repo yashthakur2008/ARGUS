@@ -153,7 +153,7 @@ public actor NotificationReconciler {
       }
       return outcome(nil, count: desired.count)
     } catch {
-      return outcome(String(describing: error))
+      return outcome(CommandFailureText.reason(for: error))
     }
   }
 
