@@ -136,31 +136,22 @@ private final class ScreenEdgeGlowPanel: NSPanel {
   }
 }
 
-/// Iridescent companions for the user's accent colour.
-///
-/// A single flat colour cannot read as light travelling around the border,
-/// because every edge brightens at once. The sweep needs neighbouring hues to
-/// shade between, so offsets stay anchored to the chosen accent and a user's
-/// colour remains recognisably theirs.
+/// A travelling highlight in the selected color, not a rainbow. Shading creates
+/// movement while keeping ARGUS's identity tied to the user's theme.
 enum ActivationPalette {
-  static let hueOffsets: [CGFloat] = [0, 40, 95, 170, 260, 310]
-
   static func sweepColors(from accent: NSColor) -> [NSColor] {
     guard let base = accent.usingColorSpace(.sRGB) else { return [accent, accent] }
-    var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
-    base.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
-    // A greyscale accent has no hue to rotate, so borrow a floor of saturation
-    // rather than letting the sweep collapse into one flat tone.
-    let spread = max(saturation, 0.45)
-    var colors = hueOffsets.map { offset -> NSColor in
-      let shifted = (hue + offset / 360).truncatingRemainder(dividingBy: 1)
-      return NSColor(hue: shifted, saturation: spread,
-        brightness: min(1, brightness + 0.12), alpha: alpha)
+    func shade(toward value: CGFloat, amount: CGFloat) -> NSColor {
+      NSColor(srgbRed: base.redComponent * (1 - amount) + value * amount,
+        green: base.greenComponent * (1 - amount) + value * amount,
+        blue: base.blueComponent * (1 - amount) + value * amount, alpha: 1)
     }
-    // A conic gradient wraps, so the final stop must equal the first or a hard
-    // seam appears at the top of the screen as it rotates.
-    if let first = colors.first { colors.append(first) }
-    return colors
+    // One narrow luminous crest and a longer shaded tail. Neutral choices stay
+    // neutral, and even black has a visible silver crest rather than vanishing.
+    let colors = [base, shade(toward: 1, amount: 0.28),
+      shade(toward: 1, amount: 0.72), shade(toward: 1, amount: 0.18),
+      shade(toward: 0, amount: 0.28), shade(toward: 0, amount: 0.48)]
+    return colors + [base]
   }
 
   static func evenLocations(count: Int) -> [NSNumber] {
@@ -248,7 +239,7 @@ final class ScreenEdgeGlowView: NSView {
       repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: 4)
     layer.add(bloom, forKey: ScreenEdgeGlowMotion.pulseKey)
 
-    // One full rotation carries the hues once around every edge. A partial turn
+    // One full rotation carries the highlight once around every edge. A partial turn
     // would leave the colours parked somewhere different from where they began.
     let travel = CABasicAnimation(keyPath: "transform.rotation.z")
     travel.fromValue = 0

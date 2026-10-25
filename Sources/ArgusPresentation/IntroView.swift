@@ -11,6 +11,10 @@ public struct IntroView: View {
   private let reduceMotion: Bool
   private let onContinue: () -> Void
   @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+  @Environment(\.colorScheme) private var colorScheme
+  private var theme: ArgusTheme {
+    ArgusTheme(accent: NSColor(accent), dark: colorScheme == .dark)
+  }
   @State private var phase: CGFloat = 0
   @State private var revealed = false
 
@@ -32,7 +36,7 @@ public struct IntroView: View {
         Text("ARGUS")
           .font(.system(size: 34, weight: .semibold, design: .rounded))
           .kerning(6)
-          .foregroundStyle(IntroPalette.titleGradient(accent: accent))
+          .foregroundStyle(Color(nsColor: theme.ink))
         Text(IntroCopy.tagline)
           .font(.title3)
           .foregroundStyle(.secondary)
@@ -46,7 +50,7 @@ public struct IntroView: View {
 
       VStack(alignment: .leading, spacing: 14) {
         ForEach(Array(IntroCopy.points.enumerated()), id: \.offset) { index, point in
-          IntroPointRow(point: point, accent: accent)
+          IntroPointRow(point: point, accent: Color(nsColor: theme.ink))
             .opacity(revealed || motionReduced ? 1 : 0)
             .offset(y: revealed || motionReduced ? 0 : 8)
             .animation(
@@ -72,11 +76,13 @@ public struct IntroView: View {
       }
       .buttonStyle(.borderedProminent)
       .controlSize(.large)
-      .tint(accent)
+      .tint(Color(nsColor: theme.ink))
+      .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
       .keyboardShortcut(.defaultAction)
     }
     .padding(40)
     .frame(minWidth: 520)
+    .background(Color(nsColor: theme.canvas))
     .task {
       guard !motionReduced else { return }
       // A single finite pass. The halo settles instead of looping forever,
@@ -164,9 +170,7 @@ enum IntroPalette {
     return ActivationPalette.sweepColors(from: base).map(Color.init(nsColor:))
   }
 
-  static func titleGradient(accent: Color) -> LinearGradient {
-    LinearGradient(colors: sweep(accent: accent), startPoint: .leading, endPoint: .trailing)
-  }
+
 }
 
 /// Claims shown on first run.

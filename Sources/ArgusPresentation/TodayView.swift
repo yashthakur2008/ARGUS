@@ -18,6 +18,11 @@ public struct TodayView: View {
   /// during first run silently replaces the introduction and the user never
   /// sees what the app is.
   var introIsPresented = false
+  @Environment(\.colorScheme) private var colorScheme
+  private var theme: ArgusTheme {
+    ArgusTheme(accent: appearance?.nsColor ?? NSColor(srgbRed: 101 / 255, green: 200 / 255, blue: 145 / 255, alpha: 1),
+      dark: colorScheme == .dark)
+  }
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
@@ -45,7 +50,7 @@ public struct TodayView: View {
       VStack(alignment: .leading, spacing: 24) {
         HStack(spacing: 10) {
           Image(systemName: "circle.hexagongrid.fill").font(.title2)
-            .foregroundStyle(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
+            .foregroundStyle(Color(nsColor: theme.ink))
           Text("ARGUS").font(.headline).tracking(3)
         }.padding(.horizontal, 18).padding(.top, 26)
         List(selection: $destination) {
@@ -53,7 +58,7 @@ public struct TodayView: View {
           Label("All reminders", systemImage: "tray.full").tag(Destination.all)
           Label("Notices", systemImage: "bell.badge").tag(Destination.notices)
           Label("Settings", systemImage: "slider.horizontal.3").tag(Destination.settings)
-        }.listStyle(.sidebar)
+        }.listStyle(.sidebar).scrollContentBackground(.hidden)
         VStack(alignment: .leading, spacing: 8) {
           if let activation {
             VoiceStatusOrb(state: voice?.isSpeaking == true ? .speaking : (activation.isListening ? .listening : .off),
@@ -83,17 +88,21 @@ public struct TodayView: View {
           Label("On this Mac", systemImage: "internaldrive").font(.caption)
           Text("A little less to hold in mind.").font(.caption2).foregroundStyle(.secondary)
         }.padding(18)
-      }.navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
+      }.background(Color(nsColor: theme.panel))
+        .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 250)
     } detail: {
+      Group {
       if destination == .settings {
         SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
           elevenLabs: elevenLabs, permissionRequester: permissionRequester, updateModel: updateModel)
       }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
+      }.frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: theme.canvas))
     }
     .frame(minWidth: 820, minHeight: 600)
-    .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
+    .tint(Color(nsColor: theme.ink))
     .sheet(item: $editor) { session in ReminderEditor(model: model, draft: session.draft) }
     .sheet(item: $snooze) { session in
       SnoozeEditor(model: model, reminder: session.reminder, until: session.until)
@@ -199,7 +208,7 @@ public struct TodayView: View {
   private func reminderSection(_ title: String, subtitle: String, items: [Reminder], expanded: Binding<Bool>) -> some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack(alignment: .firstTextBaseline) {
-        Text(title).font(.title3.weight(.semibold))
+        Text(title).font(.title3.weight(.semibold)).foregroundStyle(Color(nsColor: theme.ink))
         Text("\(items.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
         Spacer()
         Text(subtitle).font(.caption).foregroundStyle(.secondary)
@@ -212,8 +221,8 @@ public struct TodayView: View {
             if index > 0 { Divider().padding(.leading, 44) }
             reminderRow(item)
           }
-        }.background(.background, in: RoundedRectangle(cornerRadius: 12))
-          .overlay(RoundedRectangle(cornerRadius: 12).stroke(.quaternary))
+        }.background(Color(nsColor: theme.panel), in: RoundedRectangle(cornerRadius: 12))
+          .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(nsColor: theme.ink).opacity(0.18)))
         if items.count > 5 {
           Button(expanded.wrappedValue ? "Show fewer" : "Show all \(items.count)") { expanded.wrappedValue.toggle() }
             .buttonStyle(.plain).font(.callout).foregroundStyle(.secondary)

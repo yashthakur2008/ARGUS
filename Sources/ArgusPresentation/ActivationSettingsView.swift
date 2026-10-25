@@ -87,7 +87,7 @@ public struct ActivationSettingsView: View {
           HStack(spacing: 12) {
             Circle().fill(appearance.color).frame(width: 22, height: 22)
               .accessibilityLabel("Current accent \(appearance.hexString)")
-            Text("A little green, a little watchful").font(.callout)
+            Text("Your color. A little more watchful.").font(.callout)
           }
           HStack {
             TextField("Hex RGB", text: $hexDraft).textFieldStyle(.roundedBorder)
@@ -110,7 +110,7 @@ public struct ActivationSettingsView: View {
             .accessibilityIdentifier("appearance.reduceMotion")
           Text("System Reduce Motion is always respected. This override also disables the brief glow pulse and orb transitions.")
             .font(.caption).foregroundStyle(.secondary)
-          Text("The accent and screen-edge glow color are saved only on this Mac. Preview never turns on listening.")
+          Text("Your color themes the app, introduction, and summon glow. It is saved only on this Mac. Preview never turns on listening.")
             .font(.caption).foregroundStyle(.secondary)
           if let intro {
             Button("Show the introduction again") { intro.replay() }

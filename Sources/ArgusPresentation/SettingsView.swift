@@ -13,6 +13,11 @@ public struct SettingsView: View {
   var permissionRequester: (any SystemPermissionRequesting)?
   var updateModel: GitHubUpdateModel?
   var intro: IntroPresentation?
+  @Environment(\.colorScheme) private var colorScheme
+  private var theme: ArgusTheme {
+    ArgusTheme(accent: appearance?.nsColor ?? NSColor(srgbRed: 101 / 255, green: 200 / 255, blue: 145 / 255, alpha: 1),
+      dark: colorScheme == .dark)
+  }
   @State private var policyEditor: PolicyEditorSession?
   @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
@@ -80,8 +85,10 @@ public struct SettingsView: View {
         Text("Notices record due scheduled times, not OS delivery. Recurring recovery scans seven elapsed days. History is retained until the source reminder is deleted.")
           .foregroundStyle(.secondary)
       }
-    }.formStyle(.grouped).padding(16).frame(minWidth: 500, minHeight: 400)
-      .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
+    }.formStyle(.grouped).scrollContentBackground(.hidden)
+      .padding(16).frame(minWidth: 500, minHeight: 400)
+      .background(Color(nsColor: theme.canvas))
+      .tint(Color(nsColor: theme.ink))
       .sheet(item: $policyEditor) { session in QuietHoursEditor(model: model, draft: session.draft) }
       .alert(item: $presentedIssue) { issue in
         Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))

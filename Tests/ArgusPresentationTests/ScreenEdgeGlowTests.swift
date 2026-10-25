@@ -199,7 +199,7 @@ struct ActivationPaletteTests {
     let accent = NSColor(srgbRed: 0.4, green: 0.78, blue: 0.57, alpha: 1)
     let colors = ActivationPalette.sweepColors(from: accent)
 
-    #expect(colors.count == ActivationPalette.hueOffsets.count + 1)
+    #expect(colors.count == 7)
     // The user's colour must still lead the sweep, not be replaced by a preset.
     var accentHue: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
     accent.usingColorSpace(.sRGB)?.getHue(&accentHue, saturation: &s, brightness: &b, alpha: &a)
@@ -215,8 +215,7 @@ struct ActivationPaletteTests {
   }
 
   @Test func greyscaleAccentStillProducesVisibleMotion() {
-    // Pure grey has no hue to rotate; without a saturation floor the sweep
-    // would collapse to one flat tone and look static.
+    // Pure grey still needs shading to show motion without inventing a hue.
     let colors = ActivationPalette.sweepColors(from: .white)
     let distinct = Set(colors.map { $0.usingColorSpace(.sRGB)?.description ?? "" })
     #expect(distinct.count > 1)

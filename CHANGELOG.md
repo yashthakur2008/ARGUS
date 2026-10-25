@@ -2,6 +2,12 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.17 - 2026-10-24
+
+- Give ARGUS a consistent selected-color theme across the sidebar, reminder cards, Settings, introduction, and summon glow. The glow retains its travelling highlight and bloom without cycling through a Siri-like rainbow.
+- Derive readable accent text for light and dark appearances without changing your saved color. Black, white, and gray themes remain neutral, with a visible travelling highlight.
+- Keep native text and warning colors, opt-in activation, and Reduce Motion behavior unchanged.
+
 ## v0.1.16 - 2026-10-24
 
 - Make the summon animation dynamic. The screen-edge glow now sweeps an iridescent gradient once around the border with a blooming halo, instead of every edge brightening together. Colours are derived from your accent, so the glow still reads as yours.
