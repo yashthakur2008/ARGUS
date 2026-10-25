@@ -6,15 +6,17 @@ import ArgusPlatform
 public struct ActivationSettingsView: View {
   var activation: ActivationController?
   var appearance: AppearanceSettings?
+  var intro: IntroPresentation?
   var voice: VoiceExperienceController?
   @State private var hexDraft = ""
   @State private var invalidHex = false
 
   public init(activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
-    voice: VoiceExperienceController? = nil) {
+    voice: VoiceExperienceController? = nil, intro: IntroPresentation? = nil) {
     self.activation = activation
     self.appearance = appearance
     self.voice = voice
+    self.intro = intro
   }
 
   public var body: some View {
@@ -110,6 +112,12 @@ public struct ActivationSettingsView: View {
             .font(.caption).foregroundStyle(.secondary)
           Text("The accent and screen-edge glow color are saved only on this Mac. Preview never turns on listening.")
             .font(.caption).foregroundStyle(.secondary)
+          if let intro {
+            Button("Show the introduction again") { intro.replay() }
+              .accessibilityIdentifier("intro.replay")
+            Text("Reopens the first-run introduction. It only describes ARGUS and never changes permissions or reminders.")
+              .font(.caption).foregroundStyle(.secondary)
+          }
         }
         .onAppear { hexDraft = appearance.hexString }
         .onChange(of: appearance.hexString) { _, value in hexDraft = value; invalidHex = false }

@@ -2,6 +2,13 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.16 - 2026-10-24
+
+- Make the summon animation dynamic. The screen-edge glow now sweeps an iridescent gradient once around the border with a blooming halo, instead of every edge brightening together. Colours are derived from your accent, so the glow still reads as yours.
+- Add a first-run introduction with an animated halo that uses the same visual language as the summon glow. It describes the app only, and requests no permissions and changes no reminders.
+- Reopen the introduction at any time from Settings - Appearance.
+- Reduce Motion now cancels every part of the glow, including the sweep and halo layers, not only the root fade.
+
 ## v0.1.15 - 2026-10-22
 
 - Correct the reminder title limit shown on rejection. The message named 200 characters while 512 was enforced, so a valid title could be described as too long. The limit is now a single named value used by both the rule and the message.

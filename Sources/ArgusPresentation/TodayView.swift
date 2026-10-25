@@ -12,6 +12,12 @@ public struct TodayView: View {
   var elevenLabs: ElevenLabsSettingsModel?
   var permissionRequester: (any SystemPermissionRequesting)?
   var updateModel: GitHubUpdateModel?
+  /// Set while the first-run introduction is on screen.
+  ///
+  /// Only one presentation can be visible at a time, so an update alert raised
+  /// during first run silently replaces the introduction and the user never
+  /// sees what the app is.
+  var introIsPresented = false
   @State private var destination: Destination? = .today
   @State private var editor: EditorSession?
   @State private var snooze: SnoozeSession?
@@ -23,7 +29,7 @@ public struct TodayView: View {
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
     elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
-    updateModel: GitHubUpdateModel? = nil) {
+    updateModel: GitHubUpdateModel? = nil, introIsPresented: Bool = false) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
@@ -32,6 +38,7 @@ public struct TodayView: View {
     self.elevenLabs = elevenLabs
     self.permissionRequester = permissionRequester
     self.updateModel = updateModel
+    self.introIsPresented = introIsPresented
   }
   public var body: some View {
     NavigationSplitView {
@@ -107,7 +114,7 @@ public struct TodayView: View {
         }
       }.padding(24).frame(width: 440)
     }
-    .task { await checkForUpdatesOnce() }
+    .task(id: introIsPresented) { await checkForUpdatesOnce() }
     .alert(updateModel?.status?.title ?? "ARGUS update", isPresented: $showUpdateAlert) {
       if let url = updateModel?.status?.latestCommitURL {
         Button("View latest commit") { NSWorkspace.shared.open(url) }
@@ -128,7 +135,9 @@ public struct TodayView: View {
   }
 
   private func checkForUpdatesOnce() async {
-    guard !checkedForUpdates, let updateModel else { return }
+    // Deferring rather than cancelling: the check runs again once the
+    // introduction is dismissed, so the prompt is delayed, not lost.
+    guard !introIsPresented, !checkedForUpdates, let updateModel else { return }
     checkedForUpdates = true
     await updateModel.check()
     if let status = updateModel.status, GitHubUpdatePromptPolicy.shouldPrompt(status) { showUpdateAlert = true }

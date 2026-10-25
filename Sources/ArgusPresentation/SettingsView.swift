@@ -12,12 +12,13 @@ public struct SettingsView: View {
   var elevenLabs: ElevenLabsSettingsModel?
   var permissionRequester: (any SystemPermissionRequesting)?
   var updateModel: GitHubUpdateModel?
+  var intro: IntroPresentation?
   @State private var policyEditor: PolicyEditorSession?
   @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
     elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
-    updateModel: GitHubUpdateModel? = nil) {
+    updateModel: GitHubUpdateModel? = nil, intro: IntroPresentation? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
@@ -26,6 +27,7 @@ public struct SettingsView: View {
     self.elevenLabs = elevenLabs
     self.permissionRequester = permissionRequester
     self.updateModel = updateModel
+    self.intro = intro
   }
   public var body: some View {
     Form {
@@ -36,7 +38,7 @@ public struct SettingsView: View {
       }
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
-      ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
+      ActivationSettingsView(activation: activation, appearance: appearance, voice: voice, intro: intro)
       AppUpdateSection(info: AppUpdateInfo(), updateModel: updateModel)
       PermissionSupportSection(model: model, requester: permissionRequester)
       Section("Notifications") {
