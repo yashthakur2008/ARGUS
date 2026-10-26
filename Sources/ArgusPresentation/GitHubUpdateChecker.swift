@@ -142,11 +142,20 @@ public final class GitHubUpdateModel {
   public func check() async {
     guard !isChecking else { return }
     isChecking = true
+    // Consumers inspect status after awaiting check(). A previous successful
+    // result must not look like a fresh response during or after a failed check.
+    status = nil
+    errorMessage = nil
     defer { isChecking = false }
     do {
-      status = GitHubUpdateChecker.status(current: current(), remote: try await fetch())
-      errorMessage = nil
+      try Task.checkCancellation()
+      let remote = try await fetch()
+      try Task.checkCancellation()
+      status = GitHubUpdateChecker.status(current: current(), remote: remote)
     } catch {
+      // View-lifecycle cancellation is not evidence that the Mac is offline.
+      guard !Task.isCancelled, !(error is CancellationError),
+        (error as? URLError)?.code != .cancelled else { return }
       errorMessage = "Could not check GitHub for updates. Try again when this Mac is online."
     }
   }
