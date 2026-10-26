@@ -4,6 +4,7 @@ Versions identify development updates, not notarized or App Store releases. The 
 
 ## v0.1.18 - 2026-10-26
 
+- Preserve punctuation and internal whitespace in typed reminder titles. Command spacing and trailing sentence punctuation remain accepted without rewriting title data, including recurring reminders and title edits.
 - Restore “Show the introduction again” in Settings reached from the main window sidebar. Both Settings routes now receive the same introduction state.
 
 ## v0.1.17 - 2026-10-24
