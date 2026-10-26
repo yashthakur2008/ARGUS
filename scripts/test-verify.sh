@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${JCODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/argus-verification-tests.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# Fixtures must not inherit an unrelated repository above the scratch directory.
+export GIT_CEILING_DIRECTORIES="$(cd "$WORK/.." && pwd -P)"
 mkdir -p "$WORK/scripts" "$WORK/bin" "$WORK/build/ARGUS.app/Contents/Resources"
 cp "$ROOT/scripts/verify.sh" "$WORK/scripts/verify.sh"
 # The copied orchestrator must not recurse into this harness or perform real packaging.
@@ -87,9 +89,13 @@ failures=0
 cases=0
 for scenario in success relative_paths system_framework system_root_rpath system_library_root_rpath swift plist disclosure signature dependencies load_commands \
   private_dependency homebrew_dependency local_dependency toolchain_dependency volume_dependency traversal_dependency \
-  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort; do
+  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort commit_identity; do
   cases=$((cases + 1))
   status=0
+  printf 'unavailable\n' > "$WORK/build/ARGUS.app/Contents/Resources/ARGUSCommit.txt"
+  if [[ "$scenario" == commit_identity ]]; then
+    printf 'wrong revision\n' > "$WORK/build/ARGUS.app/Contents/Resources/ARGUSCommit.txt"
+  fi
   PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" VERIFY_TEST_ARGS="$WORK/$scenario.args" \
     /bin/bash "$WORK/scripts/verify.sh" > "$WORK/$scenario.log" 2>&1 || status=$?
   if [[ "$scenario" == success || "$scenario" == relative_paths || "$scenario" == system_framework || "$scenario" == system_root_rpath || "$scenario" == system_library_root_rpath ]]; then

@@ -4,6 +4,8 @@ Versions identify development updates, not notarized or App Store releases. The 
 
 ## v0.1.18 - 2026-10-26
 
+- Bundle the full Git revision so a build of the checked commit is correctly recognized as current. Verification rejects mismatched bundled commit metadata.
+
 - Check every shell script for syntax errors during repository hygiene checks, including files after the first sorted entry.
 
 - Serialize independent Swift Testing cases in verification and stress runners to prevent UI rendering from starving unrelated responsiveness watchdogs. Test-internal concurrency remains covered.

@@ -42,6 +42,11 @@ trap - EXIT
 ARGUS_SWIFT="$SWIFT" bash scripts/build-dev-app.sh
 APP="$ROOT/build/ARGUS.app"
 plutil -lint "$APP/Contents/Info.plist"
+if ! EXPECTED_COMMIT="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"; then EXPECTED_COMMIT=unavailable; fi
+if [[ "$(cat "$APP/Contents/Resources/ARGUSCommit.txt")" != "$EXPECTED_COMMIT" ]]; then
+  echo 'ERROR: bundled commit identity does not match the full source revision.' >&2
+  exit 1
+fi
 test "$(plutil -extract CFBundleIconFile raw "$APP/Contents/Info.plist")" = "ARGUS.icns"
 test -s "$APP/Contents/Resources/ARGUS.icns"
 test -n "$(plutil -extract NSMicrophoneUsageDescription raw "$APP/Contents/Info.plist")"

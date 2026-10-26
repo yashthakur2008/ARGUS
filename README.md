@@ -55,7 +55,7 @@ bash scripts/verify.sh
 open build/ARGUS.app
 ```
 
-`verify.sh` runs the tests, creates a release-mode development app, verifies its ad-hoc signature/plist, and rejects private build-machine runtime library/search paths. It does not install, launch, notarize, or publish the app. For bundling alone, use `bash scripts/build-dev-app.sh`.
+`verify.sh` runs the tests, creates a release-mode development app, verifies its ad-hoc signature/plist, and rejects private build-machine runtime library/search paths. It does not install, launch, notarize, or publish the app. For bundling alone, use `bash scripts/build-dev-app.sh`. The bundle stores the full source commit for exact update identity checks.
 
 GitHub Actions first runs `bash scripts/test-packaging-paths.sh`, which exercises the synthetic packaging suite with trailing-slash, whitespace, and symlink temporary directories without real compilation or signing. It then runs the same verification script on a clean `macos-15` runner with Xcode 16.4 selected explicitly, for pull requests and pushes to `main` or `feat/**`. The workflow has read-only repository permission, does not persist checkout credentials, and uses no signing secrets. A passing run verifies a development bundle, not notification delivery or App Store eligibility. Runner images can change independently of the selected Xcode version.
 
@@ -109,3 +109,12 @@ The consolidated design takes precedence over alternatives in supporting researc
 Full Xcode was not found in the checked standard locations. Apple developer membership, signing/provisioning, signed XPC isolation, privacy disclosures, archive validation, and user-authorized App Store submission remain release requirements. An ad-hoc bundle is not an App Store archive.
 
 Development is checkpointed in the durable initiative `argus-native-macos-assistant`. Headless sessions depend on Jcode's detached server remaining alive. Uninterrupted development after closing every client or sleeping the laptop is not guaranteed. This limitation is unrelated to ARGUS runtime independence.
+
+### Packaged update identity check
+
+After building, the following opt-in test reads the real bundle through `AppUpdateInfo` and compares it against the same full revision using the production update checker. It does not launch the app or contact GitHub. The ordinary verifier also checks that bundled metadata matches the source revision.
+
+```sh
+ARGUS_PACKAGED_APP="$PWD/build/ARGUS.app" ARGUS_EXPECTED_COMMIT="$(git rev-parse HEAD)" \
+  swift test --no-parallel --disable-xctest --enable-swift-testing --filter PackagedUpdateIdentityTests
+```
