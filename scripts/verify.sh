@@ -6,6 +6,7 @@ cd "$ROOT"
 SWIFT="${ARGUS_SWIFT:-swift}"
 "$SWIFT" --version
 python3 scripts/check-hygiene.py
+python3 scripts/test-hygiene.py
 bash scripts/test-build-dev-app.sh
 bash scripts/test-verify.sh
 TEST_LOG="$(mktemp "${TMPDIR:-/tmp}/argus-swift-test.XXXXXX")"

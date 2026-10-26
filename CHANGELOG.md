@@ -4,6 +4,8 @@ Versions identify development updates, not notarized or App Store releases. The 
 
 ## v0.1.18 - 2026-10-26
 
+- Check every shell script for syntax errors during repository hygiene checks, including files after the first sorted entry.
+
 - Serialize independent Swift Testing cases in verification and stress runners to prevent UI rendering from starving unrelated responsiveness watchdogs. Test-internal concurrency remains covered.
 
 - Clear stale update results when a new check starts. Failed or cancelled checks no longer offer a previous result, and cancellation is not reported as an offline failure.

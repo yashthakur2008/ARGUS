@@ -67,8 +67,9 @@ def main() -> int:
     run(['python3', 'scripts/check-version.py'])
     run(['python3', '-m', 'py_compile', *map(str, sorted((ROOT / 'scripts').glob('*.py')))])
     shell_scripts = sorted(str(path.relative_to(ROOT)) for path in (ROOT / 'scripts').glob('*.sh'))
-    if shell_scripts:
-        run(['bash', '-n', *shell_scripts])
+    # Bash treats later paths as arguments to the first script, not more sources.
+    for script in shell_scripts:
+        run(['bash', '-n', script])
     check_trailing_whitespace()
     check_markdown_links()
     print('Repository hygiene checks passed without requiring Swift compilation.')
