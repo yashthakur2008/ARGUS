@@ -18,6 +18,7 @@ printf 'synthetic plist\n' > "$WORK/build/ARGUS.app/Contents/Info.plist"
 cat > "$WORK/bin/swift" <<'SWIFT'
 #!/bin/bash
 [[ "${FAIL_AT:-}" != swift ]] || exit 42
+if [[ "${1:-}" == test ]]; then printf '%s\n' "$@" > "$VERIFY_TEST_ARGS"; fi
 if [[ "${FAIL_AT:-}" == swift_test_abort && "${1:-}" == test ]]; then
   echo 'dyld: Symbol not found in swift-package llbuild' >&2
   exit 134
@@ -87,10 +88,11 @@ for scenario in success relative_paths system_framework system_root_rpath system
   private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort; do
   cases=$((cases + 1))
   status=0
-  PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" \
+  PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" VERIFY_TEST_ARGS="$WORK/$scenario.args" \
     /bin/bash "$WORK/scripts/verify.sh" > "$WORK/$scenario.log" 2>&1 || status=$?
   if [[ "$scenario" == success || "$scenario" == relative_paths || "$scenario" == system_framework || "$scenario" == system_root_rpath || "$scenario" == system_library_root_rpath ]]; then
-    if [[ "$status" == 0 ]] && grep -q 'Local checks passed' "$WORK/$scenario.log"; then
+    if [[ "$status" == 0 ]] && grep -q 'Local checks passed' "$WORK/$scenario.log" \
+      && [[ "$(cat "$WORK/$scenario.args")" == "$(printf '%s\n' test --no-parallel --disable-xctest --enable-swift-testing)" ]]; then
       echo "PASS $scenario"
     else
       echo "FAIL $scenario: expected successful synthetic verification"; cat "$WORK/$scenario.log"

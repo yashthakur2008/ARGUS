@@ -12,7 +12,7 @@ TEST_LOG="$(mktemp "${TMPDIR:-/tmp}/argus-swift-test.XXXXXX")"
 cleanup_test_log() { rm -f "$TEST_LOG"; }
 trap cleanup_test_log EXIT
 set +e
-"$SWIFT" test --disable-xctest --enable-swift-testing 2>&1 | tee "$TEST_LOG"
+"$SWIFT" test --no-parallel --disable-xctest --enable-swift-testing 2>&1 | tee "$TEST_LOG"
 TEST_CODES=("${PIPESTATUS[@]}")
 set -e
 if [ "${TEST_CODES[0]}" -ne 0 ]; then

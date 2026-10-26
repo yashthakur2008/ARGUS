@@ -64,7 +64,7 @@ run_logged() {
     return "${codes[1]}"
 }
 run_logged "$output/metadata.txt" "$swift" --version
-args=(test -c "$configuration" --disable-xctest --enable-swift-testing)
+args=(test -c "$configuration" --no-parallel --disable-xctest --enable-swift-testing)
 i=1
 while [ "$i" -le "$runs" ]; do
     printf '\nRun %s: IN PROGRESS\n' "$i" >> "$summary"

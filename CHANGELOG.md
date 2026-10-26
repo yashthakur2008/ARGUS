@@ -4,6 +4,8 @@ Versions identify development updates, not notarized or App Store releases. The 
 
 ## v0.1.18 - 2026-10-26
 
+- Serialize independent Swift Testing cases in verification and stress runners to prevent UI rendering from starving unrelated responsiveness watchdogs. Test-internal concurrency remains covered.
+
 - Clear stale update results when a new check starts. Failed or cancelled checks no longer offer a previous result, and cancellation is not reported as an offline failure.
 - Preserve punctuation and internal whitespace in typed reminder titles. Command spacing and trailing sentence punctuation remain accepted without rewriting title data, including recurring reminders and title edits.
 - Restore “Show the introduction again” in Settings reached from the main window sidebar. Both Settings routes now receive the same introduction state.
