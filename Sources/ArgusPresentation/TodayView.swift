@@ -12,6 +12,7 @@ public struct TodayView: View {
   var elevenLabs: ElevenLabsSettingsModel?
   var permissionRequester: (any SystemPermissionRequesting)?
   var updateModel: GitHubUpdateModel?
+  var intro: IntroPresentation?
   /// Set while the first-run introduction is on screen.
   ///
   /// Only one presentation can be visible at a time, so an update alert raised
@@ -34,7 +35,8 @@ public struct TodayView: View {
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
     elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
-    updateModel: GitHubUpdateModel? = nil, introIsPresented: Bool = false) {
+    updateModel: GitHubUpdateModel? = nil, introIsPresented: Bool = false,
+    intro: IntroPresentation? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
@@ -43,6 +45,7 @@ public struct TodayView: View {
     self.elevenLabs = elevenLabs
     self.permissionRequester = permissionRequester
     self.updateModel = updateModel
+    self.intro = intro
     self.introIsPresented = introIsPresented
   }
   public var body: some View {
@@ -93,8 +96,7 @@ public struct TodayView: View {
     } detail: {
       Group {
       if destination == .settings {
-        SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-          elevenLabs: elevenLabs, permissionRequester: permissionRequester, updateModel: updateModel)
+        settingsDestination
       }
       else if destination == .notices { NoticesView(model: model) }
       else { reminderContent }
@@ -141,6 +143,12 @@ public struct TodayView: View {
     } message: {
       Text(updateModel?.status?.message ?? "Check GitHub for the latest ARGUS build.")
     }
+  }
+
+  var settingsDestination: SettingsView {
+    SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
+      elevenLabs: elevenLabs, permissionRequester: permissionRequester, updateModel: updateModel,
+      intro: intro)
   }
 
   private func checkForUpdatesOnce() async {

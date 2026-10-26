@@ -85,7 +85,7 @@ struct ArgusApplication: App {
         if let model {
           TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
             elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester(), updateModel: updateModel,
-            introIsPresented: intro.isPresented)
+            introIsPresented: intro.isPresented, intro: intro)
             .task {
               if lifecycle.connect(model) {
                 await voice.restoreIfEnabled()

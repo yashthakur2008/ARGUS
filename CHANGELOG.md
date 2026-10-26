@@ -2,6 +2,10 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.18 - 2026-10-26
+
+- Restore “Show the introduction again” in Settings reached from the main window sidebar. Both Settings routes now receive the same introduction state.
+
 ## v0.1.17 - 2026-10-24
 
 - Give ARGUS a consistent selected-color theme across the sidebar, reminder cards, Settings, introduction, and summon glow. The glow retains its travelling highlight and bloom without cycling through a Siri-like rainbow.
