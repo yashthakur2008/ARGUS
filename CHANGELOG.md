@@ -2,6 +2,11 @@
 
 Versions identify development updates, not notarized or App Store releases. The existing app baseline was 0.1.0/build 1. This log begins here; earlier changes remain in Git history and verification records, not reconstructed release notes.
 
+## v0.1.19 - 2026-10-29
+
+- Retry an automatic update check interrupted by introduction replay after the intro is dismissed. Wait for an overlapping Settings check instead of silently consuming the automatic attempt, and reuse its completed result without a duplicate fetch.
+- Add hidden production-view hosting regressions for ordinary and rapid intro dismissal. Native sheet/alert appearance and standalone Settings replay still require a safe interactive acceptance session.
+
 ## v0.1.18 - 2026-10-26
 
 - Bundle the full Git revision so a build of the checked commit is correctly recognized as current. Verification rejects mismatched bundled commit metadata.

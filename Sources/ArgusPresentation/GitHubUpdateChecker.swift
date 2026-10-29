@@ -130,6 +130,8 @@ public final class GitHubUpdateModel {
     return status?.presentationSummary ?? "Not checked yet"
   }
 
+  private var idleWaiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+
   private let current: () -> AppUpdateInfo
   private let fetch: @Sendable () async throws -> GitHubCommitSnapshot
 
@@ -139,6 +141,38 @@ public final class GitHubUpdateModel {
     self.fetch = fetch
   }
 
+  /// Automatic presentation waits for a Settings-owned request instead of
+  /// treating its early return as a completed check. Cancelled requests leave
+  /// no result, so a still-active caller can make a fresh attempt.
+  func checkWhenAvailable() async {
+    var waited = false
+    while isChecking {
+      waited = true
+      await waitUntilIdle()
+      guard !Task.isCancelled else { return }
+    }
+    guard !Task.isCancelled else { return }
+    if waited, status != nil || errorMessage != nil { return }
+    await check()
+  }
+
+  private func waitUntilIdle() async {
+    let id = UUID()
+    await withTaskCancellationHandler {
+      await withCheckedContinuation { continuation in
+        guard isChecking, !Task.isCancelled else {
+          continuation.resume()
+          return
+        }
+        idleWaiters[id] = continuation
+      }
+    } onCancel: {
+      Task { @MainActor [weak self] in
+        self?.idleWaiters.removeValue(forKey: id)?.resume()
+      }
+    }
+  }
+
   public func check() async {
     guard !isChecking else { return }
     isChecking = true
@@ -146,7 +180,12 @@ public final class GitHubUpdateModel {
     // result must not look like a fresh response during or after a failed check.
     status = nil
     errorMessage = nil
-    defer { isChecking = false }
+    defer {
+      isChecking = false
+      let waiters = idleWaiters
+      idleWaiters.removeAll()
+      for waiter in waiters.values { waiter.resume() }
+    }
     do {
       try Task.checkCancellation()
       let remote = try await fetch()

@@ -152,11 +152,13 @@ public struct TodayView: View {
   }
 
   private func checkForUpdatesOnce() async {
-    // Deferring rather than cancelling: the check runs again once the
-    // introduction is dismissed, so the prompt is delayed, not lost.
+    // Only completed attempts consume the once-only gate. Intro replay may
+    // cancel this task; dismissal must still be able to make a fresh attempt.
     guard !introIsPresented, !checkedForUpdates, let updateModel else { return }
+    await updateModel.checkWhenAvailable()
+    guard !Task.isCancelled, intro?.isPresented != true, !checkedForUpdates,
+      updateModel.status != nil || updateModel.errorMessage != nil else { return }
     checkedForUpdates = true
-    await updateModel.check()
     if let status = updateModel.status, GitHubUpdatePromptPolicy.shouldPrompt(status) { showUpdateAlert = true }
   }
 
