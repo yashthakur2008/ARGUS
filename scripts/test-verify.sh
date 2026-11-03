@@ -5,19 +5,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${JCODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/argus-verification-tests.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# Fixtures must not inherit an unrelated repository above the scratch directory.
+export GIT_CEILING_DIRECTORIES="$(cd "$WORK/.." && pwd -P)"
 mkdir -p "$WORK/scripts" "$WORK/bin" "$WORK/build/ARGUS.app/Contents/Resources"
 cp "$ROOT/scripts/verify.sh" "$WORK/scripts/verify.sh"
 # The copied orchestrator must not recurse into this harness or perform real packaging.
 for script in test-build-dev-app.sh test-verify.sh build-dev-app.sh; do
   printf '#!/bin/bash\nexit 0\n' > "$WORK/scripts/$script"
 done
-printf '#!/usr/bin/env python3\n' > "$WORK/scripts/check-hygiene.py"
+for script in check-hygiene.py test-hygiene.py; do
+  printf '#!/usr/bin/env python3\n' > "$WORK/scripts/$script"
+done
 printf 'synthetic icon\n' > "$WORK/build/ARGUS.icns"
 cp "$WORK/build/ARGUS.icns" "$WORK/build/ARGUS.app/Contents/Resources/ARGUS.icns"
 printf 'synthetic plist\n' > "$WORK/build/ARGUS.app/Contents/Info.plist"
 cat > "$WORK/bin/swift" <<'SWIFT'
 #!/bin/bash
 [[ "${FAIL_AT:-}" != swift ]] || exit 42
+if [[ "${1:-}" == test ]]; then printf '%s\n' "$@" > "$VERIFY_TEST_ARGS"; fi
 if [[ "${FAIL_AT:-}" == swift_test_abort && "${1:-}" == test ]]; then
   echo 'dyld: Symbol not found in swift-package llbuild' >&2
   exit 134
@@ -84,13 +89,18 @@ failures=0
 cases=0
 for scenario in success relative_paths system_framework system_root_rpath system_library_root_rpath swift plist disclosure signature dependencies load_commands \
   private_dependency homebrew_dependency local_dependency toolchain_dependency volume_dependency traversal_dependency \
-  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort; do
+  private_rpath homebrew_rpath local_rpath toolchain_rpath traversal_rpath spaced_traversal_rpath swift_test_abort commit_identity; do
   cases=$((cases + 1))
   status=0
-  PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" \
+  printf 'unavailable\n' > "$WORK/build/ARGUS.app/Contents/Resources/ARGUSCommit.txt"
+  if [[ "$scenario" == commit_identity ]]; then
+    printf 'wrong revision\n' > "$WORK/build/ARGUS.app/Contents/Resources/ARGUSCommit.txt"
+  fi
+  PATH="$WORK/bin:$PATH" ARGUS_SWIFT="$WORK/bin/swift" FAIL_AT="$scenario" VERIFY_TEST_ARGS="$WORK/$scenario.args" \
     /bin/bash "$WORK/scripts/verify.sh" > "$WORK/$scenario.log" 2>&1 || status=$?
   if [[ "$scenario" == success || "$scenario" == relative_paths || "$scenario" == system_framework || "$scenario" == system_root_rpath || "$scenario" == system_library_root_rpath ]]; then
-    if [[ "$status" == 0 ]] && grep -q 'Local checks passed' "$WORK/$scenario.log"; then
+    if [[ "$status" == 0 ]] && grep -q 'Local checks passed' "$WORK/$scenario.log" \
+      && [[ "$(cat "$WORK/$scenario.args")" == "$(printf '%s\n' test --no-parallel --disable-xctest --enable-swift-testing)" ]]; then
       echo "PASS $scenario"
     else
       echo "FAIL $scenario: expected successful synthetic verification"; cat "$WORK/$scenario.log"

@@ -78,6 +78,24 @@ struct LoginItemControllerTests {
     controller.setEnabled(false)
     #expect(controller.errorMessage == nil)
   }
+  @Test func failureWithoutLocalizedTextStillAvoidsFoundationPlaceholder() {
+    // SMAppService can throw plain errors. localizedDescription would then
+    // render "The operation couldn't be completed. (…CoreError error 1.)",
+    // showing a Swift type name instead of anything actionable.
+    struct Opaque: Error {}
+    let service = FakeLoginItemService()
+    service.failure = Opaque()
+    let controller = LoginItemController(service: service)
+
+    controller.setEnabled(true)
+
+    let message = controller.errorMessage ?? ""
+    #expect(!message.isEmpty)
+    #expect(!message.contains("Opaque"))
+    #expect(!message.contains("error 1"))
+    #expect(!message.contains("couldn’t be completed"))
+    #expect(message.hasSuffix("."))
+  }
   @Test func unavailableCopyDoesNotAssumeAppIsNotInstalled() {
     let service = FakeLoginItemService()
     service.currentStatus = .unavailable

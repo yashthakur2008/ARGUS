@@ -34,7 +34,11 @@ extension AppModelTests {
     #expect(model.commandText == input)
     #expect(try model.store.list() == [healthy])
     #expect(try model.store.generation() == 1)
-    #expect(model.message?.contains("Could not apply command") == true)
+    // An offset this large overflows the resulting date, so the message names
+    // the invalid date rather than leaking the underlying error case.
+    #expect(model.message?.contains("not valid") == true, "actual: \(model.message ?? "nil")")
+    #expect(model.message?.contains("invalid") == false)
+    #expect(model.message?.contains("Error") == false)
   }
 
   @Test(arguments: [false, true], [false, true])

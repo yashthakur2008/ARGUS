@@ -58,7 +58,7 @@ if n == int(os.environ.get('FAKE_FAIL_RUN', '0')):
 
     def assert_suite(self, count, config, result):
         self.assertEqual(result.returncode, 0, result.stderr)
-        base = ["test", "-c", config, "--disable-xctest", "--enable-swift-testing"]
+        base = ["test", "-c", config, "--no-parallel", "--disable-xctest", "--enable-swift-testing"]
         self.assertEqual(self.invocations(), [["--version"], base] +
                          [base + ["--skip-build"]] * (count - 1))
         for n in range(1, count + 1):

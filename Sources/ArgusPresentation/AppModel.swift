@@ -25,7 +25,7 @@ public final class AppModel {
   private var readFailed = false
   private var refreshSequence = 0
   private var deletionRequestedAt: Date?
-  public static let examples = "Try “remind me to Stretch in 20 minutes” or “every weekday at 09:00, Plan the day”."
+  public static let examples = "Try “remind me to Stretch in 20 minutes”, “remind me to Call mom tomorrow at 09:00”, or “every weekday at 09:00, Plan the day”."
 
   public convenience init(store: ReminderStore, client: any NotificationClient,
     clock: @escaping @Sendable () -> Date,
@@ -107,11 +107,14 @@ public final class AppModel {
     return .loaded(loadedPolicy)
   }
 
-  private func failRefresh(_ error: String) {
+  /// `reason` already comes from `CommandFailureText`, applied by the loader at
+  /// the point the error was caught, so it is user-facing text rather than an
+  /// error value.
+  private func failRefresh(_ reason: String) {
     readFailed = true
     isReconciling = false
     result = nil
-    message = "Could not read reminders: \(error)"
+    message = "Could not read reminders. \(reason)"
   }
 
   /// Successful local writes/publication invalidate pending loads, including direct
@@ -152,7 +155,7 @@ public final class AppModel {
       if commandText == input { commandText = "" }
       await refresh()
     } catch {
-      message = "Could not apply command: \(error). \(Self.examples)"
+      message = CommandFailureText.message(for: error, examples: Self.examples)
     }
   }
 
@@ -180,7 +183,7 @@ public final class AppModel {
       invalidateRefresh()
       message = nil
     } catch {
-      message = "Reminder changed or could not be deleted. Please review it again. \(error)"
+      message = "Reminder changed or could not be deleted. Please review it again. \(CommandFailureText.reason(for: error))"
     }
     await refresh()
   }
@@ -198,7 +201,7 @@ public final class AppModel {
       await refresh()
       return true
     } catch {
-      message = "Could not save. Check the fields, or reopen to review a newer version. \(error)"
+      message = "Could not save. Check the fields, or reopen to review a newer version. \(CommandFailureText.reason(for: error))"
       return false
     }
   }
@@ -227,7 +230,7 @@ public final class AppModel {
       try saveSnooze(reminder, until: until, now: now)
       message = nil
     } catch {
-      message = "Could not snooze. Please review the reminder. \(error)"
+      message = "Could not snooze. Please review the reminder. \(CommandFailureText.reason(for: error))"
       await refresh()
       return false
     }
@@ -267,7 +270,7 @@ public final class AppModel {
     isWorking = true
     defer { isWorking = false }
     do { try await requestPermission(); message = nil }
-    catch { message = "Notification permission request failed: \(error)" }
+    catch { message = "Notification permission request failed. \(CommandFailureText.reason(for: error))" }
     await refresh()
   }
 

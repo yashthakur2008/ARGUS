@@ -11,11 +11,19 @@ public struct SettingsView: View {
   var login: LoginItemController?
   var elevenLabs: ElevenLabsSettingsModel?
   var permissionRequester: (any SystemPermissionRequesting)?
+  var updateModel: GitHubUpdateModel?
+  var intro: IntroPresentation?
+  @Environment(\.colorScheme) private var colorScheme
+  private var theme: ArgusTheme {
+    ArgusTheme(accent: appearance?.nsColor ?? NSColor(srgbRed: 101 / 255, green: 200 / 255, blue: 145 / 255, alpha: 1),
+      dark: colorScheme == .dark)
+  }
   @State private var policyEditor: PolicyEditorSession?
   @State private var presentedIssue: SettingsIssue?
   public init(model: AppModel, activation: ActivationController? = nil, appearance: AppearanceSettings? = nil,
     voice: VoiceExperienceController? = nil, login: LoginItemController? = nil,
-    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil) {
+    elevenLabs: ElevenLabsSettingsModel? = nil, permissionRequester: (any SystemPermissionRequesting)? = nil,
+    updateModel: GitHubUpdateModel? = nil, intro: IntroPresentation? = nil) {
     self.model = model
     self.activation = activation
     self.appearance = appearance
@@ -23,6 +31,8 @@ public struct SettingsView: View {
     self.login = login
     self.elevenLabs = elevenLabs
     self.permissionRequester = permissionRequester
+    self.updateModel = updateModel
+    self.intro = intro
   }
   public var body: some View {
     Form {
@@ -33,8 +43,8 @@ public struct SettingsView: View {
       }
       if let voice, let login { VoiceSettingsView(voice: voice, login: login) }
       if let elevenLabs { ElevenLabsSettingsView(model: elevenLabs) }
-      ActivationSettingsView(activation: activation, appearance: appearance, voice: voice)
-      AppUpdateSection(info: AppUpdateInfo())
+      ActivationSettingsView(activation: activation, appearance: appearance, voice: voice, intro: intro)
+      AppUpdateSection(info: AppUpdateInfo(), updateModel: updateModel)
       PermissionSupportSection(model: model, requester: permissionRequester)
       Section("Notifications") {
         Text(model.status)
@@ -75,8 +85,10 @@ public struct SettingsView: View {
         Text("Notices record due scheduled times, not OS delivery. Recurring recovery scans seven elapsed days. History is retained until the source reminder is deleted.")
           .foregroundStyle(.secondary)
       }
-    }.formStyle(.grouped).padding(16).frame(minWidth: 500, minHeight: 400)
-      .tint(appearance?.color ?? Color(red: 101 / 255, green: 200 / 255, blue: 145 / 255))
+    }.formStyle(.grouped).scrollContentBackground(.hidden)
+      .padding(16).frame(minWidth: 500, minHeight: 400)
+      .background(Color(nsColor: theme.canvas))
+      .tint(Color(nsColor: theme.ink))
       .sheet(item: $policyEditor) { session in QuietHoursEditor(model: model, draft: session.draft) }
       .alert(item: $presentedIssue) { issue in
         Alert(title: Text(issue.title), message: Text(issue.message), dismissButton: .default(Text("OK")))
@@ -99,6 +111,7 @@ private struct PolicyEditorSession: Identifiable { let id = UUID(); let draft: N
 
 private struct AppUpdateSection: View {
   let info: AppUpdateInfo
+  let updateModel: GitHubUpdateModel?
 
   var body: some View {
     Section("What's new") {
@@ -131,7 +144,64 @@ private struct AppUpdateSection: View {
         NSPasteboard.general.setString(info.copyText, forType: .string)
       }
       .accessibilityHint("Copies the app version, build, Git commit, and bundled changelog summary")
+      if let updateModel {
+        GitHubUpdateStatusView(model: updateModel)
+      }
     }
+    .task { await updateModel?.check() }
+  }
+}
+
+private struct GitHubUpdateStatusView: View {
+  let model: GitHubUpdateModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Label(model.presentationSummary, systemImage: summaryIcon)
+        .font(.headline).foregroundStyle(summaryColor)
+      if model.isChecking {
+        Label("Checking GitHub for updates…", systemImage: "arrow.triangle.2.circlepath")
+          .font(.callout).foregroundStyle(.secondary)
+      }
+      if let status = model.status {
+        Label(status.title, systemImage: status.showsUpdatePrompt ? "sparkles" : "checkmark.seal")
+          .font(.headline).foregroundStyle(status.showsUpdatePrompt ? .orange : .secondary)
+        Text(status.message).font(.callout).foregroundStyle(.secondary)
+        if let current = status.currentCommit, let latest = status.latestCommit {
+          Text("Current: \(current) · GitHub: \(latest)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        } else if let latest = status.latestCommit {
+          Text("GitHub: \(latest)").font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+        }
+        HStack {
+          if let url = status.latestCommitURL {
+            Button("View latest commit") { NSWorkspace.shared.open(url) }
+          }
+          Button("View PR") { NSWorkspace.shared.open(GitHubUpdateChecker.pullRequestURL) }
+          Button("Copy rebuild command") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(status.copyCommand, forType: .string)
+          }
+        }
+      }
+      if let error = model.errorMessage {
+        Text(error).font(.caption).foregroundStyle(.orange)
+      }
+      Button("Check GitHub for updates") { Task { await model.check() } }
+        .disabled(model.isChecking)
+    }.padding(.vertical, 4)
+  }
+
+  private var summaryIcon: String {
+    if model.isChecking { return "arrow.triangle.2.circlepath" }
+    if model.errorMessage != nil { return "wifi.exclamationmark" }
+    guard let status = model.status else { return "questionmark.circle" }
+    return status.showsUpdatePrompt ? "sparkles" : "checkmark.seal"
+  }
+
+  private var summaryColor: Color {
+    if model.errorMessage != nil { return .orange }
+    guard let status = model.status else { return .secondary }
+    return status.showsUpdatePrompt ? .orange : .secondary
   }
 }
 
@@ -172,13 +242,8 @@ private struct PermissionSupportSection: View {
   }
 
   private func openSettings(_ id: String) {
-    let url: String = switch id {
-    case "notifications": "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
-    case "microphone": "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-    case "speech": "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition"
-    case "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-    default: "x-apple.systempreferences:com.apple.preference.security"
-    }
-    if let url = URL(string: url) { NSWorkspace.shared.open(url) }
+    guard let string = PermissionSupportChecklist.systemSettingsURLString(for: id),
+          let url = URL(string: string) else { return }
+    NSWorkspace.shared.open(url)
   }
 }

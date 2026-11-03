@@ -136,8 +136,39 @@ private final class ScreenEdgeGlowPanel: NSPanel {
   }
 }
 
+/// A travelling highlight in the selected color, not a rainbow. Shading creates
+/// movement while keeping ARGUS's identity tied to the user's theme.
+enum ActivationPalette {
+  static func sweepColors(from accent: NSColor) -> [NSColor] {
+    guard let base = accent.usingColorSpace(.sRGB) else { return [accent, accent] }
+    func shade(toward value: CGFloat, amount: CGFloat) -> NSColor {
+      NSColor(srgbRed: base.redComponent * (1 - amount) + value * amount,
+        green: base.greenComponent * (1 - amount) + value * amount,
+        blue: base.blueComponent * (1 - amount) + value * amount, alpha: 1)
+    }
+    // One narrow luminous crest and a longer shaded tail. Neutral choices stay
+    // neutral, and even black has a visible silver crest rather than vanishing.
+    let colors = [base, shade(toward: 1, amount: 0.28),
+      shade(toward: 1, amount: 0.72), shade(toward: 1, amount: 0.18),
+      shade(toward: 0, amount: 0.28), shade(toward: 0, amount: 0.48)]
+    return colors + [base]
+  }
+
+  static func evenLocations(count: Int) -> [NSNumber] {
+    guard count > 1 else { return [0] }
+    return (0..<count).map { NSNumber(value: Double($0) / Double(count - 1)) }
+  }
+}
+
 @MainActor
 final class ScreenEdgeGlowView: NSView {
+  private let gradient = CAGradientLayer()
+  private let ring = CAShapeLayer()
+  /// Holds the border-shaped mask still while the gradient turns inside it.
+  private let aperture = CALayer()
+  /// Draws the halo, because a mask layer never renders its own shadow.
+  private let halo = CAShapeLayer()
+
   init(frame: CGRect, color: NSColor) {
     super.init(frame: frame)
     setAccessibilityElement(false)
@@ -145,54 +176,105 @@ final class ScreenEdgeGlowView: NSView {
     guard let layer, !ScreenEdgeGlowGeometry.edges(for: frame.size).isEmpty else { return }
     layer.opacity = 0.82
 
-    let gradient = CAGradientLayer()
-    gradient.frame = bounds
-    gradient.startPoint = CGPoint(x: 0, y: 0)
-    gradient.endPoint = CGPoint(x: 1, y: 1)
-    gradient.colors = [
-      color.blended(withFraction: 0.35, of: .white) ?? color,
-      color,
-      color.blended(withFraction: 0.30, of: .black) ?? color,
-      color.blended(withFraction: 0.18, of: .white) ?? color,
-    ].map { $0.cgColor }
-    gradient.locations = [0, 0.35, 0.7, 1]
-
     let width = min(5, bounds.width / 2, bounds.height / 2)
-    let ring = CAShapeLayer()
-    ring.frame = bounds
-    ring.path = CGPath(roundedRect: bounds.insetBy(dx: width / 2, dy: width / 2),
+    let border = CGPath(roundedRect: bounds.insetBy(dx: width / 2, dy: width / 2),
       cornerWidth: 12, cornerHeight: 12, transform: nil)
+
+    halo.frame = bounds
+    halo.path = border
+    halo.fillColor = nil
+    halo.strokeColor = color.cgColor
+    halo.lineWidth = width
+    halo.shadowColor = color.cgColor
+    halo.shadowOpacity = 0.85
+    halo.shadowRadius = 10
+    halo.shadowOffset = .zero
+    layer.addSublayer(halo)
+
+    // The mask belongs to this container rather than to the gradient: a mask
+    // is a sublayer, so rotating the gradient would rotate its own mask and
+    // smear the border diagonally across the screen instead of around it.
+    aperture.frame = bounds
+    ring.frame = bounds
+    ring.path = border
     ring.fillColor = nil
     ring.strokeColor = NSColor.white.cgColor
     ring.lineWidth = width
-    ring.shadowColor = NSColor.white.cgColor
-    ring.shadowOpacity = 0.85
-    ring.shadowRadius = 10
-    ring.shadowOffset = .zero
-    gradient.mask = ring
-    layer.addSublayer(gradient)
+    aperture.mask = ring
+
+    // A conic gradient puts every hue at a different angle, so turning it reads
+    // as light travelling around the border. It is squared to the diagonal so
+    // rotation never exposes an uncovered corner.
+    let reach = (bounds.width * bounds.width + bounds.height * bounds.height).squareRoot()
+    gradient.type = .conic
+    gradient.frame = CGRect(x: bounds.midX - reach / 2, y: bounds.midY - reach / 2,
+      width: reach, height: reach)
+    gradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+    gradient.endPoint = CGPoint(x: 0.5, y: 0)
+    let sweep = ActivationPalette.sweepColors(from: color)
+    gradient.colors = sweep.map(\.cgColor)
+    gradient.locations = ActivationPalette.evenLocations(count: sweep.count)
+    aperture.addSublayer(gradient)
+    layer.addSublayer(aperture)
   }
 
   /// Preference updates only cancel. Disabling Reduce Motion never replays old feedback.
   func applyMotion(systemReduced: Bool, overrideReduced: Bool, startPulse: Bool) {
     guard let layer else { return }
     if systemReduced || overrideReduced {
-      layer.removeAllAnimations()
+      for target in [layer, aperture, gradient, ring, halo] { target.removeAllAnimations() }
       return
     }
     guard startPulse, !ScreenEdgeGlowGeometry.edges(for: bounds.size).isEmpty else { return }
-    let pulse = CAKeyframeAnimation(keyPath: "opacity")
-    pulse.values = [0.55, 1, 0.82]
-    pulse.keyTimes = [0, 0.4, 1]
-    pulse.duration = 0.9
-    pulse.repeatCount = 0
-    pulse.isRemovedOnCompletion = true
-    pulse.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeInEaseOut)]
-    layer.add(pulse, forKey: "activationPulse")
+
+    // Arriving: a fast bloom that overshoots before settling, so the summon has
+    // an impact rather than fading up linearly.
+    let bloom = CAKeyframeAnimation(keyPath: "opacity")
+    bloom.values = [0, 1, 0.68, 0.92, 0.82]
+    bloom.keyTimes = [0, 0.18, 0.45, 0.72, 1]
+    bloom.duration = ScreenEdgeGlowMotion.duration
+    bloom.repeatCount = 0
+    bloom.isRemovedOnCompletion = true
+    bloom.timingFunctions = Array(
+      repeating: CAMediaTimingFunction(name: .easeInEaseOut), count: 4)
+    layer.add(bloom, forKey: ScreenEdgeGlowMotion.pulseKey)
+
+    // One full rotation carries the highlight once around every edge. A partial turn
+    // would leave the colours parked somewhere different from where they began.
+    let travel = CABasicAnimation(keyPath: "transform.rotation.z")
+    travel.fromValue = 0
+    travel.toValue = 2 * Double.pi
+    travel.duration = ScreenEdgeGlowMotion.duration
+    travel.repeatCount = 0
+    travel.isRemovedOnCompletion = true
+    travel.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+    gradient.add(travel, forKey: ScreenEdgeGlowMotion.sweepKey)
+
+    // The halo widens as the sweep passes, which keeps the border from looking
+    // like a flat painted rectangle.
+    let breathe = CAKeyframeAnimation(keyPath: "shadowRadius")
+    breathe.values = [4, 22, 11]
+    breathe.keyTimes = [0, 0.3, 1]
+    breathe.duration = ScreenEdgeGlowMotion.duration
+    breathe.repeatCount = 0
+    breathe.isRemovedOnCompletion = true
+    breathe.timingFunctions = Array(
+      repeating: CAMediaTimingFunction(name: .easeOut), count: 2)
+    halo.add(breathe, forKey: ScreenEdgeGlowMotion.breatheKey)
   }
 
   required init?(coder: NSCoder) { nil }
   override var isOpaque: Bool { false }
+}
+
+/// Timings shared by the summon animation and the checks that bound it.
+enum ScreenEdgeGlowMotion {
+  /// Must stay inside the panel lifetime, or motion would be cut off mid-sweep.
+  static let duration: CFTimeInterval = 1.1
+  static let pulseKey = "activationPulse"
+  static let sweepKey = "activationSweep"
+  static let breatheKey = "activationBreathe"
+  static let keys = [pulseKey, sweepKey, breatheKey]
 }
 
 struct ScreenEdgeGlowPolicy {

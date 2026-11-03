@@ -2,6 +2,8 @@
 
 The **Stress evidence** workflow runs the default-enabled automated Swift suite three times in Debug and three times in Release. Each configuration runs on a fresh hosted macOS job. The first repetition builds that configuration; later repetitions reuse its test binary. Opt-in SQLite profiling (`ARGUS_SQLITE_PROFILE=1`) is not enabled by CI. These are repeated executions of existing tests, not new unique tests, random fuzzing, or a long-duration hardware soak.
 
+Both local verification and stress runners explicitly pass `--no-parallel`. Independent Swift Testing cases run serially so synchronous MainActor image rendering cannot starve unrelated responsiveness watchdogs. Concurrency exercised inside individual tests remains enabled. This is not a parallel-suite isolation check or a performance benchmark.
+
 ## Inspect the evidence
 
 Open a pull request's **Repeated suite** checks, then the Actions run. Inspect the job summary and download the `stress-debug-...` and `stress-release-...` artifacts (GitHub login required). Artifacts expire after 14 days; the Actions run links and Git history retain the review trail subject to GitHub retention.

@@ -65,8 +65,8 @@ while IFS= read -r rpath; do
 done < <(printf '%s\n' "$LOAD_COMMANDS" | /usr/bin/awk '/cmd LC_RPATH/{found=1; next} found && /path /{sub(/^ *path /, ""); sub(/ \(offset.*$/, ""); print; found=0}')
 cp "$ROOT/Config/Info.plist" "$STAGED_APP/Contents/Info.plist"
 cp "$ROOT/CHANGELOG.md" "$STAGED_APP/Contents/Resources/CHANGELOG.md"
-if git -C "$ROOT" rev-parse --short HEAD >/dev/null 2>&1; then
-  git -C "$ROOT" rev-parse --short HEAD > "$STAGED_APP/Contents/Resources/ARGUSCommit.txt"
+if git -C "$ROOT" rev-parse HEAD >/dev/null 2>&1; then
+  git -C "$ROOT" rev-parse HEAD > "$STAGED_APP/Contents/Resources/ARGUSCommit.txt"
 else
   printf 'unavailable\n' > "$STAGED_APP/Contents/Resources/ARGUSCommit.txt"
 fi

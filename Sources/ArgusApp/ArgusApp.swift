@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import ArgusCore
 import ArgusPresentation
 import ArgusStore
 import ArgusPlatform
@@ -16,6 +17,8 @@ struct ArgusApplication: App {
   private let voice: VoiceExperienceController
   private let elevenLabs: ElevenLabsSettingsModel
   private let login: LoginItemController
+  private let updateModel: GitHubUpdateModel
+  private let intro: IntroPresentation
 
   init() {
     let preferences: UserDefaults
@@ -27,6 +30,7 @@ struct ArgusApplication: App {
     let glow = ScreenEdgeGlowController()
     self.appearance = appearance
     self.glow = glow
+    intro = IntroPresentation(defaults: preferences)
     let feedback = VoiceFeedbackRelay()
     let activation = ActivationController(service: LocalAudioActivationService()) { trigger in
       glow.show(color: appearance.nsColor, reduceMotion: appearance.reduceMotion)
@@ -44,6 +48,7 @@ struct ArgusApplication: App {
     if let preferredMode = voice.preferredMode { activation.mode = preferredMode }
     self.voice = voice
     self.login = LoginItemController(service: NativeLoginItemService())
+    self.updateModel = GitHubUpdateModel()
     feedback.voice = voice
     do {
       guard Bundle.main.bundleURL.pathExtension == "app", Bundle.main.bundleIdentifier != nil else {
@@ -67,7 +72,7 @@ struct ArgusApplication: App {
       startupError = nil
     } catch {
       model = nil
-      startupError = "ARGUS could not start. Use the development .app bundle, and verify its local data directory is accessible. Existing data was not replaced. \(error)"
+      startupError = "ARGUS could not start. Use the development .app bundle, and verify its local data directory is accessible. Existing data was not replaced. \(CommandFailureText.reason(for: error))"
     }
     // Install the startup barrier and observers before any Scene exposes capture controls,
     // including a Settings-first launch or a failed reminder-store initialization.
@@ -79,7 +84,8 @@ struct ArgusApplication: App {
       Group {
         if let model {
           TodayView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-            elevenLabs: elevenLabs)
+            elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester(), updateModel: updateModel,
+            introIsPresented: intro.isPresented, intro: intro)
             .task {
               if lifecycle.connect(model) {
                 await voice.restoreIfEnabled()
@@ -87,6 +93,14 @@ struct ArgusApplication: App {
               await model.refresh()
             }
             .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
+            // A sheet, so the intro cannot be mistaken for the app's own
+            // chrome and cannot leave the Today view unreachable behind it.
+            .sheet(isPresented: Binding(get: { intro.isPresented },
+              set: { if !$0 { intro.complete() } })) {
+              IntroView(accent: appearance.color, reduceMotion: appearance.reduceMotion) {
+                intro.complete()
+              }
+            }
         } else {
           ContentUnavailableView("Local storage unavailable", systemImage: "externaldrive.badge.exclamationmark",
             description: Text(startupError ?? "Unknown storage error"))
@@ -97,7 +111,8 @@ struct ArgusApplication: App {
     Settings {
       if let model {
         SettingsView(model: model, activation: activation, appearance: appearance, voice: voice, login: login,
-          elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester())
+          elevenLabs: elevenLabs, permissionRequester: NativeSystemPermissionRequester(), updateModel: updateModel,
+          intro: intro)
           .onChange(of: appearance.reduceMotion) { _, value in glow.setReduceMotion(value) }
       }
     }

@@ -20,6 +20,12 @@ public enum PendingNotificationError: Error, Sendable, Equatable, CustomStringCo
   }
 }
 
+extension PendingNotificationError: UserFacingFailure {
+  /// These descriptions are already written for users and name the recovery
+  /// action, so they are reused rather than replaced by generic wording.
+  public var userFacingReason: String { description }
+}
+
 public protocol NotificationClient: Sendable {
   func authorizationStatus() async -> NotificationAuthorization
   func pending() async throws -> [NotificationIntent]

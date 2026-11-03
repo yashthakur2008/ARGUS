@@ -5,6 +5,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d "${JCODE_SCRATCH_DIR:-${TMPDIR:-/tmp}}/argus-packaging-tests.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
+# Fixtures must not inherit an unrelated repository above the scratch directory.
+export GIT_CEILING_DIRECTORIES="$(cd "$WORK" && pwd -P)"
 # The packager resolves its root with cd/pwd. Match that path spelling before
 # comparing mv arguments, even when TMPDIR has a trailing slash or symlink.
 WORK="$(cd "$WORK" && pwd -P)"
@@ -67,7 +69,11 @@ cmp "$FIXTURE/products/ARGUS" "$bundle/Contents/MacOS/ARGUS"
 cmp "$FIXTURE/Config/Info.plist" "$bundle/Contents/Info.plist"
 cmp "$FIXTURE/build/ARGUS.icns" "$bundle/Contents/Resources/ARGUS.icns"
 cmp "$FIXTURE/CHANGELOG.md" "$bundle/Contents/Resources/CHANGELOG.md"
-grep -Eq '^[0-9a-f]{7,}|^unavailable$' "$bundle/Contents/Resources/ARGUSCommit.txt"
+if [[ -d "$FIXTURE/.git" ]]; then
+  [[ "$(cat "$bundle/Contents/Resources/ARGUSCommit.txt")" == "$(git -C "$FIXTURE" rev-parse HEAD)" ]]
+else
+  grep -qx unavailable "$bundle/Contents/Resources/ARGUSCommit.txt"
+fi
 if [[ -d "$FIXTURE/previous.app" ]]; then
   diff -r "$FIXTURE/previous.app" "$FIXTURE/build/ARGUS.app" >/dev/null
 fi
@@ -95,6 +101,12 @@ run_case() {
   if [[ "$failure" == contention ]]; then
     mkdir "$CASE/build/.ARGUS-packaging.lock"
     printf 'other packager owns this lock\n' > "$CASE/build/.ARGUS-packaging.lock/owner"
+  fi
+  if [[ "$name" == embeds_full_commit ]]; then
+    git -C "$CASE" init -q
+    git -C "$CASE" add Config/Info.plist CHANGELOG.md
+    git -C "$CASE" -c user.name=Fixture -c user.email=fixture@example.invalid \
+      -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -qm "Fixture revision"
   fi
   local result=0
   FIXTURE="$CASE" FAIL_AT="$failure" ARGUS_SWIFT="$CASE/bin/swift" \
@@ -148,8 +160,9 @@ run_case() {
 
 run_case replaces_whole_bundle ""
 run_case creates_initial_bundle "" true
+run_case embeds_full_commit ""
 for phase in build icon inspect rpath plist sign verify backup publish rollback interrupt contention; do
   run_case "preserves_previous_on_$phase" "$phase"
 done
 [[ "$failures" == 0 ]] || { printf '%s packaging regression(s) failed\n' "$failures"; exit 1; }
-printf '14 synthetic packaging regressions passed. No real toolchain or signing was used.\n'
+printf '15 synthetic packaging regressions passed. No real toolchain or signing was used.\n'
